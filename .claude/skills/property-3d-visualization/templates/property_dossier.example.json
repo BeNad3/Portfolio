@@ -1,0 +1,83 @@
+{
+  "_comment": "Example dossier for a fictional 2-room apartment. Units: metres. Plan coordinates: +X right, +Y up on the plan sheet. Every fact carries an evidence tag: measured | plan | photo | derived | inferred | unknown. build_shell.py reads levels, walls, openings, rooms, fixed_elements, cameras and plan_underlay; every other section is analysis the redesign and render phases rely on.",
+  "project": {
+    "name": "example-apartment",
+    "address_private": true,
+    "north_deg": 0,
+    "north_evidence": "plan (north arrow points straight up)",
+    "latitude": 48.85,
+    "longitude": 2.35,
+    "survey_date": "2026-09-27",
+    "sources": {
+      "plan": "00_input/plan/plan.pdf",
+      "photos": ["00_input/photos/living_01.jpg", "00_input/photos/bedroom_01.jpg"],
+      "measurements": "00_input/measurements.txt"
+    }
+  },
+
+  "levels": [
+    {"id": "L0", "elevation": 0.0, "ceiling_height": 2.5, "evidence": "measured (laser, living room centre)"}
+  ],
+
+  "walls": [
+    {"id": "W1", "a": [0.0, 0.0], "b": [8.4, 0.0], "thickness": 0.2, "align": "center", "kind": "exterior", "evidence": "plan"},
+    {"id": "W2", "a": [8.4, 0.0], "b": [8.4, 4.2], "thickness": 0.2, "align": "center", "kind": "exterior", "evidence": "plan"},
+    {"id": "W3", "a": [8.4, 4.2], "b": [0.0, 4.2], "thickness": 0.2, "align": "center", "kind": "party wall", "evidence": "plan"},
+    {"id": "W4", "a": [0.0, 4.2], "b": [0.0, 0.0], "thickness": 0.2, "align": "center", "kind": "exterior", "evidence": "plan"},
+    {"id": "W5", "a": [5.1, 0.1], "b": [5.1, 4.1], "thickness": 0.1, "align": "center", "kind": "partition", "extend_ends": false, "evidence": "plan + photo P1"}
+  ],
+
+  "openings": [
+    {"id": "WIN1", "wall": "W1", "type": "window", "offset": 1.5, "width": 1.6, "sill": 0.9, "head": 2.2, "evidence": "plan width, measured sill", "detail": "2-leaf casement, white PVC, visible in P1"},
+    {"id": "WIN2", "wall": "W1", "type": "window", "offset": 6.0, "width": 1.2, "sill": 0.9, "head": 2.2, "evidence": "plan width, sill inferred = WIN1", "detail": "1-leaf casement, visible in P2"},
+    {"id": "D1", "wall": "W3", "type": "door", "offset": 6.47, "width": 0.93, "sill": 0.0, "head": 2.04, "evidence": "plan", "detail": "entrance door, opens inward, hinge on west side"},
+    {"id": "D2", "wall": "W5", "type": "door", "offset": 2.8, "width": 0.83, "sill": 0.0, "head": 2.04, "evidence": "plan + photo P1", "detail": "bedroom door, opens into bedroom"}
+  ],
+
+  "rooms": [
+    {"id": "R1", "name": "Living room", "polygon": [[0.1, 0.1], [5.05, 0.1], [5.05, 4.1], [0.1, 4.1]], "area_m2_plan": 19.8, "evidence": "plan"},
+    {"id": "R2", "name": "Bedroom", "polygon": [[5.15, 0.1], [8.3, 0.1], [8.3, 4.1], [5.15, 4.1]], "area_m2_plan": 12.6, "evidence": "plan"}
+  ],
+
+  "fixed_elements": [
+    {"id": "RAD1", "type": "radiator", "wall": "W1", "side": "left", "offset": 1.6, "width": 1.4, "depth": 0.1, "height": 0.6, "elevation": 0.15, "evidence": "photo P1, width derived from window"},
+    {"id": "RAD2", "type": "radiator", "wall": "W1", "side": "left", "offset": 6.1, "width": 1.0, "depth": 0.1, "height": 0.6, "elevation": 0.15, "evidence": "photo P2"},
+    {"id": "OUT1", "type": "outlet", "wall": "W4", "side": "left", "offset": 1.2, "width": 0.08, "depth": 0.02, "height": 0.08, "elevation": 0.25, "evidence": "photo P1"},
+    {"id": "OUT2", "type": "outlet", "wall": "W5", "side": "right", "offset": 0.6, "width": 0.08, "depth": 0.02, "height": 0.08, "elevation": 0.25, "evidence": "photo P1"}
+  ],
+
+  "finishes": [
+    {"room": "R1", "surface": "floor", "description": "oak strip parquet, ~7 cm boards, satin varnish, boards run along X", "evidence": "photo P1"},
+    {"room": "R1", "surface": "walls", "description": "matte white paint, slightly warm", "evidence": "photo P1"},
+    {"room": "R1", "surface": "ceiling", "description": "flat white, no cornice", "evidence": "photo P1"},
+    {"room": "R2", "surface": "floor", "description": "same parquet as R1, continuous under door", "evidence": "photo P2"}
+  ],
+
+  "furniture_existing": [
+    {"id": "F1", "room": "R1", "item": "3-seat sofa", "approx_size_m": [2.1, 0.9, 0.8], "position": [2.5, 3.6], "evidence": "photo P1, scaled against door D2"}
+  ],
+
+  "light": {
+    "window_orientation": "WIN1 and WIN2 face south (plan north up, windows on bottom wall)",
+    "photo_conditions": "P1: overcast, soft; no hard sun patches",
+    "practicals": [{"room": "R1", "type": "ceiling pendant", "position": [2.6, 2.1], "evidence": "photo P1"}]
+  },
+
+  "circulation": {
+    "adjacency": [["R1", "R2", "D2"], ["R1", "landing", "D1"]],
+    "notes": "Entry D1 opens into the living room; the D1 -> D2 path must stay clear (>= 0.9 m)."
+  },
+
+  "cameras": [
+    {"id": "P1", "photo": "00_input/photos/living_01.jpg", "position": [4.7, 3.7, 1.45], "look_at": [1.0, 0.8, 1.2], "focal_mm_35eq": 24, "evidence": "estimated: EXIF 35mm-equiv 24, height from horizon line"},
+    {"id": "P2", "photo": "00_input/photos/bedroom_01.jpg", "position": [7.9, 3.8, 1.4], "look_at": [6.0, 0.5, 1.2], "focal_mm_35eq": 26, "evidence": "estimated: EXIF missing, phone main lens assumed"}
+  ],
+
+  "plan_underlay": {"image": "00_input/plan/plan.png", "m_per_px": 0.01, "origin_px": [120, 540], "opacity": 0.5},
+
+  "unknowns": [
+    "Ceiling height in R2 not measured (assumed equal to R1: 2.50 m). Please confirm.",
+    "WIN2 sill height not visible in any photo."
+  ],
+  "conflicts": []
+}
