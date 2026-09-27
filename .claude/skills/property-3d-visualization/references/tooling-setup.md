@@ -14,8 +14,10 @@ Claude Code on your machine picks them up on start (approve them when asked).
 | Real-ESRGAN via spandrel | `pip install spandrel torch pillow numpy` | final upscale (`upscale-for-print`) |
 | n8n + n8n-mcp | n8n self-hosted (`n8n-self-hosting`), `npx n8n-mcp` with `N8N_API_URL` / `N8N_API_KEY` env vars | automation |
 
-Headless render workers need only Blender (or `pip install bpy` for Python 3.11) and Pillow;
-`build_shell.py` and `photoreal_setup.py` run without a display. The clay pass defaults to Cycles
+Headless render workers need only Blender (or `pip install bpy` for Python 3.11) plus Pillow and
+numpy; every script in `scripts/` runs without a display (`layout_check.py`, `photo_match_overlay.py`
+and `finish.py` do not need Blender at all). To download Poly Haven assets from a sandboxed or cloud
+machine, its network policy must allow `polyhaven.com`, `api.polyhaven.com` and `dl.polyhaven.org`. The clay pass defaults to Cycles
 because Workbench needs an OpenGL/EGL context.
 
 Security (from the Blender MCP README): the MCP can run arbitrary Python inside Blender. Save your

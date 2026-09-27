@@ -72,9 +72,10 @@ realestate_camera("CAM_P1", fstop=8.0, height=1.35)   # level + lens shift, keep
 
 - `render_preset("final")`: Cycles 1024 samples, adaptive 0.01, OIDN/OptiX denoise, AgX (Base Contrast),
   passes Z/normal/mist/crypto for the comp. 3000 px for web, 6000 px (or upscale) for print.
-- Compositor (see `compositing`): exposure → gentle S-curve → glare (fog glow, low) only on
-  light sources → lens distortion 0.005–0.01 → chromatic aberration ≤ 0.002 → vignette 5–10 % →
-  film grain at 1–2 % noise. Everything subtle: the goal is "a good camera", not "an effect".
+- Finish with `scripts/finish.py` (version-independent, works on Blender, ComfyUI or upscaled outputs):
+  gentle S-curve → edge chromatic aberration (~1 px per 1000 px width) → vignette ~10 % → mid-tone
+  grain ~1 %. Glare on light sources and lens distortion, if wanted, in the Blender compositor
+  (`compositing`). Everything subtle: the goal is "a good camera", not "an effect".
 - Keep the linear EXR, deliver PNG/JPEG (sRGB).
 
 ## 5. "Does it look like a photo?" checklist
@@ -83,6 +84,8 @@ realestate_camera("CAM_P1", fstop=8.0, height=1.35)   # level + lens shift, keep
 - [ ] Verticals vertical, horizon level, no stretched corners.
 - [ ] Light direction and sun patches consistent with window orientation and chosen time.
 - [ ] Contact shadows under every object (nothing floats); rugs lie flat with thickness.
+- [ ] No coincident faces: overlapping parts never share a face plane (it renders as black patches or
+      flicker in Cycles). Offset by ≥ 5 mm. Trace a suspicious pixel with `scene.ray_cast` to find the object.
 - [ ] Furniture scale checked against doors (2.04 m), worktops (0.90 m), seat height (0.45 m).
 - [ ] No pure blacks, no clipped highlights except light sources and windows; windows not blown to white unless the photos are.
 - [ ] Materials: roughness variation everywhere; wood grain direction and scale plausible; fabric has sheen and creases; glass has reflections and faint dust.

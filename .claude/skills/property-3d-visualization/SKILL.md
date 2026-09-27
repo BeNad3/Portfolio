@@ -119,12 +119,22 @@ Read `references/design-rules.md` (clearances, sizes, lighting layers). Chain-lo
 2. **List the locks** (from the dossier): walls, openings, ceiling, radiators, sockets, fixed kitchen
    and bath elements, flooring unless the brief changes it. A changed finish (paint, floor) is allowed
    only if the brief asks for it, and is recorded as a proposal.
-3. **Plan first:** propose 1–2 furniture layouts as a top view (`03_design/layout_vN.png`) with
-   clearances dimensioned. Check each against `design-rules.md`: circulation widths, door swings,
-   radiators and windows not blocked, sockets reachable, bed/sofa/table clearances, TV distance.
-4. Get the layout approved, then place real-size furniture in `COL_Furniture_Proposed`
-   (Poly Haven / Sketchfab via Blender MCP, or modelled). Check every asset's real dimensions after
-   import; rescale to the catalogue size, never to "what fits".
+3. **Plan first:** write 1–2 layouts as `03_design/layout_vN.json` (schema:
+   `templates/layout.example.json`) and run the checker, which also draws the top view the client approves:
+   ```bash
+   python <skills>/property-3d-visualization/scripts/layout_check.py \
+     --dossier 01_analysis/property_dossier.json --layout 03_design/layout_v1.json --out 03_design/layout_v1.png
+   ```
+   It enforces `design-rules.md` against the real architecture: items inside rooms and not colliding,
+   door swings clear (needs `swing_side`/`hinge` in the dossier), sofa/bed/table/wardrobe clearances,
+   radiators and windows not blocked, and the widest route between every pair of doors (target ≥ 0.90 m,
+   error < 0.80 m). **No render of a layout with errors.** Warnings are shown to the user.
+   Sockets and TV distance are still checked by hand.
+4. Get the layout approved, then place it with the same JSON:
+   `exec(materials.py); exec(furnish.py); furnish("03_design/layout_v1.json")`. Items with an `asset`
+   (Poly Haven / Sketchfab download) are imported and scaled to the layout width, with a warning if
+   their proportions differ from the real product; items without one get dimension-exact stand-ins
+   (fine for review and lighting, replaced by real models before client renders).
 5. Write `ffe_schedule.md` (item, size, material, colour, placement, evidence/reference) and, for
    staging, `staging_ledger.md` (template in `real-estate-content-production`).
 
@@ -137,12 +147,15 @@ Read `references/photoreal-recipes.md` (the render recipe). Chain-load `blender-
 1. **Cameras:** the photo cameras first (true before/after pairs), then new real-estate views only
    where the model is fully known. 24–28 mm full-frame equivalent, camera 1.2–1.5 m high, level, vertical
    lines kept vertical with lens shift, never wider than 20 mm.
-2. **Materials:** PBR from Poly Haven or scanned sets, real-world UV scale (the shell already has
-   1 UV unit = 1 m), roughness variation on every surface, no perfect materials.
+2. **Materials** (`scripts/materials.py`): `pbr_from_folder()` for Poly Haven / vendor texture sets at
+   their real tile size (the shell has 1 UV unit = 1 m); procedural `plaster_paint`, `parquet`, `fabric`,
+   `glass`, `solid`, `brushed_metal` as fallbacks; `default_shell_look()` for a neutral start. Match
+   kept finishes to the photos. Roughness variation on every surface, no perfect materials.
 3. **Light:** Poly Haven HDRI + sun placed from the real orientation, latitude and chosen date/time;
    window portals; practical lights at 2700–3000 K. Match exposure and white balance to the photos.
-4. **Render:** Cycles, AgX, 1024+ samples with denoise, passes for comp; photo-camera lens character
-   (subtle DOF, vignette, slight chromatic aberration, grain).
+4. **Render:** Cycles, AgX, 1024+ samples with denoise, passes for comp; then
+   `scripts/finish.py --src raw.png --out final.jpg` for the camera traits (gentle contrast curve,
+   edge chromatic aberration, vignetting, mid-tone grain), strength ≤ 1 for real estate.
 5. **Imperfection pass:** cushions dented, throws folded unevenly, books leaning, slight rug curl,
    fingerprints on glass, micro-scratches on floors, cables where devices are. Plausible, not messy.
 6. **Optional AI finishing** (`references/ai-finishing.md`, `comfyui-*`): low-denoise, structure-locked

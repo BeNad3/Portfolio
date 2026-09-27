@@ -14,13 +14,15 @@ Non-negotiables:
 - Accuracy of the existing property comes first, aesthetics second.
 - Every fact in the dossier carries an evidence tag; `inferred` values are shown to the user.
 - Never invent architecture. Stop and ask on plan/photo conflicts.
-- Photo-match gate (`scripts/photo_match_overlay.py`) before any look-dev.
+- Photo-match gate (`scripts/photo_match_overlay.py`) before any look-dev; layout gate
+  (`scripts/layout_check.py`, zero errors) before any furnished render.
 - Redesigns and staging are labelled as visualisations (`real-estate-content-production`).
 
 ## Layout
 
 - `.claude/skills/property-3d-visualization/`: orchestrator skill, tested scripts
-  (`build_shell.py`, `photo_match_overlay.py`, `photoreal_setup.py`), dossier template, references.
+  (`build_shell.py`, `photo_match_overlay.py`, `layout_check.py`, `materials.py`, `furnish.py`,
+  `photoreal_setup.py`, `finish.py`), dossier and layout templates, references.
 - `.claude/skills/*`: curated third-party skills (Blender, archviz, arch-render, real-estate,
   ComfyUI, upscaling, n8n). Sources, commits and licenses: `.claude/third_party/NOTICE.md`.
 - `.mcp.json`: Blender MCP, ComfyUI MCP and n8n-mcp for use on a machine running those apps.

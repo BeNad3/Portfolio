@@ -30,8 +30,8 @@
   "openings": [
     {"id": "WIN1", "wall": "W1", "type": "window", "offset": 1.5, "width": 1.6, "sill": 0.9, "head": 2.2, "evidence": "plan width, measured sill", "detail": "2-leaf casement, white PVC, visible in P1"},
     {"id": "WIN2", "wall": "W1", "type": "window", "offset": 6.0, "width": 1.2, "sill": 0.9, "head": 2.2, "evidence": "plan width, sill inferred = WIN1", "detail": "1-leaf casement, visible in P2"},
-    {"id": "D1", "wall": "W3", "type": "door", "offset": 6.47, "width": 0.93, "sill": 0.0, "head": 2.04, "evidence": "plan", "detail": "entrance door, opens inward, hinge on west side"},
-    {"id": "D2", "wall": "W5", "type": "door", "offset": 2.8, "width": 0.83, "sill": 0.0, "head": 2.04, "evidence": "plan + photo P1", "detail": "bedroom door, opens into bedroom"}
+    {"id": "D1", "wall": "W3", "type": "door", "offset": 6.47, "width": 0.93, "sill": 0.0, "head": 2.04, "swing_side": "left", "hinge": "b", "evidence": "plan", "detail": "entrance door, opens inward, hinge on west side. swing_side is relative to the wall direction a->b; hinge a|b = which end of the opening carries the hinge"},
+    {"id": "D2", "wall": "W5", "type": "door", "offset": 2.8, "width": 0.83, "sill": 0.0, "head": 2.04, "swing_side": "right", "hinge": "b", "evidence": "plan + photo P1", "detail": "bedroom door, opens into bedroom"}
   ],
 
   "rooms": [
