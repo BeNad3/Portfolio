@@ -128,8 +128,9 @@ Read `references/design-rules.md` (clearances, sizes, lighting layers). Chain-lo
    It enforces `design-rules.md` against the real architecture: items inside rooms and not colliding,
    door swings clear (needs `swing_side`/`hinge` in the dossier), sofa/bed/table/wardrobe clearances,
    radiators and windows not blocked, and the widest route between every pair of doors (target ≥ 0.90 m,
-   error < 0.80 m). **No render of a layout with errors.** Warnings are shown to the user.
-   Sockets and TV distance are still checked by hand.
+   error < 0.80 m), lamps/TV/desk within 1.5 m of a real socket, TV distance for its screen size and
+   the main seat facing it. **No render of a layout with errors.** Warnings are shown to the user as
+   decisions (e.g. a socket warning: extension lead, move the item, or new socket as electrical work).
 4. Get the layout approved, then place it with the same JSON:
    `exec(materials.py); exec(furnish.py); furnish("03_design/layout_v1.json")`. Items with an `asset`
    (Poly Haven / Sketchfab download) are imported and scaled to the layout width, with a warning if
@@ -152,7 +153,11 @@ Read `references/photoreal-recipes.md` (the render recipe). Chain-load `blender-
    `glass`, `solid`, `brushed_metal` as fallbacks; `default_shell_look()` for a neutral start. Match
    kept finishes to the photos. Roughness variation on every surface, no perfect materials.
 3. **Light:** Poly Haven HDRI + sun placed from the real orientation, latitude and chosen date/time;
-   window portals; practical lights at 2700–3000 K. Match exposure and white balance to the photos.
+   window portals; practical lights at 2700–3000 K. Match exposure and white balance to the photos by
+   measurement, not by eye: render the photo camera, then
+   `python scripts/look_match.py --photo <photo> --render <render> --region x0,y0,x1,y1` on a kept
+   wall/ceiling. It returns the exposure correction in stops and the white-balance direction
+   (render too warm → lower `white_balance_temperature`); repeat until the verdict is `match`.
 4. **Render:** Cycles, AgX, 1024+ samples with denoise, passes for comp; then
    `scripts/finish.py --src raw.png --out final.jpg` for the camera traits (gentle contrast curve,
    edge chromatic aberration, vignetting, mid-tone grain), strength ≤ 1 for real estate.
@@ -166,6 +171,12 @@ Read `references/photoreal-recipes.md` (the render recipe). Chain-load `blender-
    windows, no floating objects, no AI artefacts, disclosure label present where needed.
 8. **Deliver** to `05_final/`: images, paired originals, disclosure text, alt text, and a short report
    of what is real, what is proposed, and what was inferred.
+
+## Maintaining the tools
+
+After editing any script, run `python scripts/selftest.py` (Pillow + numpy; the Blender half needs
+`bpy`, e.g. `pip install bpy` on Python 3.11). It checks behaviour on the bundled example: good inputs
+pass, broken layouts/dossiers/cameras are rejected, and measurements recover known values.
 
 ## Automation
 

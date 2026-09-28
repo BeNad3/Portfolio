@@ -11,6 +11,8 @@ layout JSON (see templates/layout.example.json), then checks:
   * each item's functional clearance zone (in front of a sofa, around a bed, behind dining
     chairs, in front of a wardrobe...) is free;
   * radiators keep a free zone in front, windows are not blocked by tall furniture;
+  * lamps, TV, desk are within cable reach (1.5 m) of a socket recorded in the dossier;
+  * the TV sits at a sensible distance for its size ("screen_in", default 55) and the main seat faces it;
   * the widest walking route between every pair of doors, and its narrowest point.
 
 Writes a dimensioned top view (the drawing the client approves) and prints a JSON report.
@@ -46,6 +48,9 @@ ZONES = {
     "kitchen_run":  [("front", 1.00, {"rug"}, "error")],
 }
 NON_BLOCKING = {"rug", "ceiling_light", "wall_art", "curtain"}
+POWERED = {"tv_unit", "floor_lamp", "bedside_table", "desk", "table_lamp"}   # override per item: "powered": true/false
+CABLE_REACH = 1.5     # m from the item's footprint to a socket before an extension lead or new socket is needed
+SEATING = {"sofa", "armchair"}
 TALL = 1.0            # m: taller items must not stand in front of windows
 
 
@@ -256,6 +261,44 @@ def run(dossier, layout):
                 if it["size"][2] > max(TALL, op.get("sill", 0.9)) and len(zc & item_cells[it["id"]]) > MIN_OVERLAP:
                     issue("error", it["id"], f"tall item blocks window {op['id']}")
 
+    # sockets: powered items within cable reach of a real socket (from the dossier)
+    sockets = []
+    for fe in dossier.get("fixed_elements", []):
+        if fe["type"] in ("outlet", "socket") and "wall" in fe:
+            w = walls[fe["wall"]]
+            (ax, ay), u, left, _ = wall_frame(w)
+            sgn = 1 if fe.get("side", "left") == "left" else -1
+            mid = fe["offset"] + fe["width"] / 2
+            off = w["thickness"] / 2
+            sockets.append((fe["id"], (ax + u[0] * mid + left[0] * sgn * off, ay + u[1] * mid + left[1] * sgn * off)))
+    powered = [it for it in items if it.get("powered", it["type"] in POWERED)]
+    if powered and not sockets:
+        issue("warning", "sockets", "no sockets recorded in the dossier: socket reach not checked")
+    for it in powered if sockets else []:
+        dist, sid = min((footprint_distance(it, p), sid) for sid, p in sockets)
+        if dist > CABLE_REACH:
+            issue("warning", it["id"], f"nearest socket {sid} is {dist:.1f} m away (> {CABLE_REACH} m): "
+                                       "extension lead, relocate, or propose a new socket as electrical work")
+
+    # TV viewing distance and orientation from the seating in the same room
+    for tv in [it for it in items if it["type"] == "tv_unit"]:
+        diag = tv.get("screen_in", 55) * 0.0254
+        seats = [it for it in items if it["type"] in SEATING and it.get("room") == tv.get("room")]
+        if not seats:
+            continue
+        seat = max(seats, key=lambda it: it["size"][0])                 # main seat = widest
+        dx, dy = tv["center"][0] - seat["center"][0], tv["center"][1] - seat["center"][1]
+        dist = math.hypot(dx, dy)
+        lo, hi = 1.0 * diag, 2.5 * diag
+        if not lo <= dist <= hi:
+            issue("warning", tv["id"], f"{seat['id']} to TV {dist:.2f} m for a {tv.get('screen_in', 55)}\" screen "
+                                       f"(comfortable {1.2 * diag:.1f}-{1.6 * diag:.1f} m, acceptable {lo:.1f}-{hi:.1f} m)")
+        r = math.radians(seat.get("rotation_deg", 0.0))
+        front = (-math.sin(r), math.cos(r))
+        cos_a = (front[0] * dx + front[1] * dy) / max(dist, 1e-6)
+        if cos_a < math.cos(math.radians(35)):
+            issue("warning", tv["id"], f"{seat['id']} does not face the TV ({math.degrees(math.acos(max(-1, min(1, cos_a)))):.0f} deg off axis)")
+
     # circulation: widest route between door endpoints
     walk = (all_floor | door_cells)
     obstacle_cells = set().union(*(item_cells[it["id"]] for it in blocking)) if blocking else set()
@@ -289,6 +332,17 @@ def run(dossier, layout):
                 issue(sev, name, f"route narrows to {width:.2f} m (target 0.90, minimum 0.80) near {pinch}")
 
     return g, issues, routes, item_cells, swings, zones_drawn
+
+
+def footprint_distance(item, p):
+    """Distance from point p to the item's rectangular footprint (0 if inside)."""
+    r = math.radians(item.get("rotation_deg", 0.0))
+    dx, dy = p[0] - item["center"][0], p[1] - item["center"][1]
+    lx = dx * math.cos(r) + dy * math.sin(r)
+    ly = -dx * math.sin(r) + dy * math.cos(r)
+    ex = max(abs(lx) - item["size"][0] / 2, 0.0)
+    ey = max(abs(ly) - item["size"][1] / 2, 0.0)
+    return math.hypot(ex, ey)
 
 
 def clearance_field(g, walk):

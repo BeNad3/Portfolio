@@ -219,10 +219,11 @@ def realestate_camera(name, focal_mm=None, height=None, fstop=8.0, focus_distanc
     if height is not None:
         cam.location.z = height
     if level:
-        rx = cam.rotation_euler.x                       # 90° = horizontal view
-        pitch = rx - math.radians(90)
-        cam.rotation_euler.x = math.radians(90)
-        cam.rotation_euler.y = 0.0
+        # work from the actual view direction: Euler angles can decompose with flipped axes
+        fwd = cam.rotation_euler.to_matrix() @ Vector((0, 0, -1))
+        pitch = math.asin(max(-1.0, min(1.0, fwd.z)))     # + looking up
+        yaw = math.atan2(-fwd.x, fwd.y)
+        cam.rotation_euler = (math.radians(90), 0.0, yaw)
         # vertical shift that keeps roughly the same framing: tan(pitch) * focal / sensor
         sensor = data.sensor_height if data.sensor_fit == "VERTICAL" else data.sensor_width
         data.shift_y = max(-0.3, min(0.3, math.tan(pitch) * data.lens / sensor))

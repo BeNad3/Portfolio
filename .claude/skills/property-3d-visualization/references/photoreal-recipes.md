@@ -25,9 +25,10 @@ render_preset("preview", exposure=1.0, white_balance_k=7500)
 - **View through the window:** the real view matters for honesty. Use a backplate photo of the actual
   view (from the photos) on a plane 5–30 m outside, emission ≈ exposure-matched. Never invent a
   park or a sea view.
-- **White balance:** raise `white_balance_k` until a white wall reads neutral in the render (typically
-  7000–9000 K for skylit rooms, ~3000 K when practicals dominate at night). Verify with the
-  `color-correction` skill's measurements rather than by eye.
+- **White balance and exposure:** measure against the real photo with `scripts/look_match.py` on a kept
+  wall or ceiling (same camera). Verified direction in Blender: *lower* `white_balance_temperature`
+  makes the image cooler, *higher* makes it warmer, 6500 K is neutral. Skylit rooms typically land at
+  7000–9000 K, rooms dominated by warm practicals around 3000–4000 K. Iterate until `match`.
 - **Artificial lights:** IES profiles for spots when available; lampshade materials with translucency
   so the shade glows; never an invisible light with no fixture.
 
