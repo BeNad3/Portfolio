@@ -53,6 +53,9 @@ PALETTE = {
     "MAT_Steel": ("brushed_metal", (0.70, 0.70, 0.68), {"roughness": 0.3}),
     "MAT_Print": ("print", (0.62, 0.36, 0.24), {}),
     "MAT_Ceramic": ("solid", (0.85, 0.83, 0.78), {"roughness": 0.25}),
+    "MAT_Cushion_C": ("fabric", (0.10, 0.16, 0.30), {"sheen": 0.5}),
+    "MAT_Leaf": ("solid", (0.14, 0.27, 0.11), {"roughness": 0.45}),
+    "MAT_Soil": ("solid", (0.10, 0.07, 0.05), {"roughness": 0.95}),
 }
 _OVERRIDES = {}
 
@@ -214,8 +217,18 @@ def build_sofa(p, w, d, h, mat="MAT_Sofa", seats=3):
         _jitter(b, 0.03, 0.02)
 
 
-def build_coffee_table(p, w, d, h, round_top=False):
+def build_coffee_table(p, w, d, h, round_top=None):
+    """Rectangular on four legs, or round (w == d) on three legs."""
     top = 0.03
+    if round_top is None:
+        round_top = abs(w - d) < 1e-6
+    if round_top:
+        cyl(p, f"{p.name}_top", w / 2, top, (0, 0, h - top / 2), "MAT_Oak", 64)
+        for k in range(3):
+            a = 2 * math.pi * k / 3
+            cyl(p, f"{p.name}_leg", 0.018, h - top, (math.cos(a) * w * 0.32, math.sin(a) * w * 0.32, (h - top) / 2),
+                "MAT_Oak", 12)
+        return
     box(p, f"{p.name}_top", (w, d, top), (0, 0, h - top / 2), "MAT_Oak", 0.006)
     for sx in (-1, 1):
         for sy in (-1, 1):
@@ -360,6 +373,26 @@ def build_tall_unit(p, w, d, h):
     box(p, f"{p.name}_handle2", (0.012, 0.012, 0.35), (w / 2 - 0.06, d / 2 - 0.004, split - 0.25), "MAT_Steel", 0.002)
 
 
+def build_plant(p, w, d, h, blades=11):
+    """Snake plant (Sansevieria) in a ceramic pot: upright tapered blades, slightly irregular.
+    Item size = pot diameter x pot diameter x total height."""
+    pot_h = min(0.35, h * 0.35)
+    r = min(w, d) / 2
+    cyl(p, f"{p.name}_pot", r, pot_h, (0, 0, pot_h / 2), "MAT_Ceramic", 40, r_top=r * 1.05)
+    cyl(p, f"{p.name}_soil", r * 0.95, 0.01, (0, 0, pot_h - 0.02), "MAT_Soil", 32)
+    for k in range(blades):
+        bh = (h - pot_h) * _RNG.uniform(0.55, 1.0)
+        bw = _RNG.uniform(0.035, 0.06)
+        me = bpy.data.meshes.new(f"{p.name}_blade")
+        me.from_pydata([(-bw / 2, 0, 0), (bw / 2, 0, 0), (bw * 0.1, 0, bh), (-bw * 0.1, 0, bh)], [], [(0, 1, 2, 3)])
+        o = _obj(f"{p.name}_blade", me, p, "MAT_Leaf")
+        o.modifiers.new("Thickness", "SOLIDIFY").thickness = 0.003
+        a = 2 * math.pi * k / blades + _RNG.uniform(-0.3, 0.3)
+        rr = r * _RNG.uniform(0.1, 0.6)
+        o.location = (math.cos(a) * rr, math.sin(a) * rr, pot_h - 0.02)
+        o.rotation_euler = (_RNG.uniform(-0.12, 0.12), _RNG.uniform(-0.12, 0.12), _RNG.uniform(0, math.pi))
+
+
 def build_curtain(p, w, d, h, folds_per_m=6.0):
     """Sheer curtain panel with sinusoidal folds on a thin rod; item width = curtain width, height = rod height.
     Place with front (+Y) facing into the room, a few cm in front of the window wall."""
@@ -412,7 +445,7 @@ BUILDERS = {
     "bedside_table": build_bedside_table, "wardrobe": build_wardrobe, "bookcase": build_bookcase,
     "dining_table": build_dining_table, "chair": build_chair, "kitchen_run": build_kitchen_run,
     "tall_unit": build_tall_unit, "curtain": build_curtain, "wall_art": build_wall_art,
-    "cushion": build_cushion, "pendant": build_pendant,
+    "cushion": build_cushion, "pendant": build_pendant, "plant": build_plant,
 }
 
 
