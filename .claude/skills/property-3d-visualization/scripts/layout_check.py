@@ -47,7 +47,7 @@ ZONES = {
     "tv_unit":      [("front", 0.60, {"rug", "coffee_table"}, "warning")],
     "kitchen_run":  [("front", 1.00, {"rug", "kitchen_run", "tall_unit"}, "error")],   # L/U kitchens meet at corners
 }
-NON_BLOCKING = {"rug", "ceiling_light", "wall_art", "curtain"}
+NON_BLOCKING = {"rug", "ceiling_light", "wall_art", "curtain", "pendant", "cushion"}
 POWERED = {"tv_unit", "floor_lamp", "bedside_table", "desk", "table_lamp"}   # override per item: "powered": true/false
 CABLE_REACH = 1.5     # m from the item's footprint to a socket before an extension lead or new socket is needed
 SEATING = {"sofa", "armchair"}

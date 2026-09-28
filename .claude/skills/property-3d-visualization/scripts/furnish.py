@@ -30,6 +30,33 @@ _RNG = random.Random(7)
 
 # ---------------------------------------------------------------- materials
 
+# name -> (factory in materials.py, default colour, extra kwargs). A layout's "palette" can override the
+# colour of any entry, e.g. {"palette": {"MAT_Sofa": [0.55, 0.50, 0.43]}}, so a style is data, not code.
+PALETTE = {
+    "MAT_Sofa": ("fabric", (0.42, 0.40, 0.36), {"sheen": 0.6}),
+    "MAT_Armchair": ("fabric", (0.30, 0.34, 0.30), {"sheen": 0.6}),
+    "MAT_Rug": ("fabric", (0.72, 0.68, 0.60), {"sheen": 0.3, "roughness": 0.95, "weave_scale": 150}),
+    "MAT_Linen": ("fabric", (0.82, 0.80, 0.76), {"sheen": 0.3, "weave_scale": 600}),
+    "MAT_Cushion_A": ("fabric", (0.55, 0.32, 0.22), {"sheen": 0.5}),
+    "MAT_Cushion_B": ("fabric", (0.40, 0.45, 0.36), {"sheen": 0.5}),
+    "MAT_Shade": ("fabric", (0.90, 0.87, 0.80), {"sheen": 0.2}),
+    "MAT_Sheer": ("sheer", (0.93, 0.91, 0.87), {}),
+    "MAT_Oak": ("solid", (0.46, 0.32, 0.20), {"roughness": 0.45, "coat": 0.2}),
+    "MAT_Lacquer": ("solid", (0.80, 0.79, 0.76), {"roughness": 0.3, "coat": 0.3}),
+    "MAT_Metal_Black": ("solid", (0.03, 0.03, 0.03), {"roughness": 0.35, "metallic": 1.0}),
+    "MAT_Brass": ("brushed_metal", (0.80, 0.62, 0.35), {"roughness": 0.3}),
+    "MAT_Screen": ("solid", (0.01, 0.01, 0.012), {"roughness": 0.08}),
+    "MAT_Books": ("solid", (0.45, 0.40, 0.35), {"roughness": 0.6}),
+    "MAT_Kitchen_Front": ("solid", (0.58, 0.57, 0.52), {"roughness": 0.55}),
+    "MAT_Worktop": ("solid", (0.50, 0.36, 0.24), {"roughness": 0.35, "coat": 0.3}),
+    "MAT_Plinth": ("solid", (0.12, 0.12, 0.12), {"roughness": 0.6}),
+    "MAT_Steel": ("brushed_metal", (0.70, 0.70, 0.68), {"roughness": 0.3}),
+    "MAT_Print": ("print", (0.62, 0.36, 0.24), {}),
+    "MAT_Ceramic": ("solid", (0.85, 0.83, 0.78), {"roughness": 0.25}),
+}
+_OVERRIDES = {}
+
+
 def _mat(name):
     """Named furniture materials; built once with the factories from materials.py."""
     m = bpy.data.materials.get(name)
@@ -38,24 +65,45 @@ def _mat(name):
     g = globals()
     if "fabric" not in g:
         raise RuntimeError("exec materials.py before furnish.py")
-    palette = {
-        "MAT_Sofa": lambda: g["fabric"](name, (0.42, 0.40, 0.36), sheen=0.6),
-        "MAT_Armchair": lambda: g["fabric"](name, (0.30, 0.34, 0.30), sheen=0.6),
-        "MAT_Rug": lambda: g["fabric"](name, (0.72, 0.68, 0.60), sheen=0.3, roughness=0.95, weave_scale=150),
-        "MAT_Linen": lambda: g["fabric"](name, (0.82, 0.80, 0.76), sheen=0.3),
-        "MAT_Shade": lambda: g["fabric"](name, (0.90, 0.87, 0.80), sheen=0.2),
-        "MAT_Oak": lambda: g["solid"](name, (0.46, 0.32, 0.20), roughness=0.45, coat=0.2),
-        "MAT_Lacquer": lambda: g["solid"](name, (0.80, 0.79, 0.76), roughness=0.3, coat=0.3),
-        "MAT_Metal_Black": lambda: g["solid"](name, (0.03, 0.03, 0.03), roughness=0.35, metallic=1.0),
-        "MAT_Brass": lambda: g["brushed_metal"](name, (0.80, 0.62, 0.35), roughness=0.3),
-        "MAT_Screen": lambda: g["solid"](name, (0.01, 0.01, 0.012), roughness=0.08),
-        "MAT_Books": lambda: g["solid"](name, (0.45, 0.40, 0.35), roughness=0.6),
-        "MAT_Kitchen_Front": lambda: g["solid"](name, (0.58, 0.57, 0.52), roughness=0.55),     # matte greige
-        "MAT_Worktop": lambda: g["solid"](name, (0.50, 0.36, 0.24), roughness=0.35, coat=0.3),  # oiled oak
-        "MAT_Plinth": lambda: g["solid"](name, (0.12, 0.12, 0.12), roughness=0.6),
-        "MAT_Steel": lambda: g["brushed_metal"](name, (0.70, 0.70, 0.68), roughness=0.3),
-    }
-    return palette.get(name, lambda: g["solid"](name, (0.6, 0.6, 0.6)))()
+    factory, color, kw = PALETTE.get(name, ("solid", (0.6, 0.6, 0.6), {}))
+    color = tuple(_OVERRIDES.get(name, color))
+    if factory == "sheer":
+        return _sheer(name, color)
+    if factory == "print":
+        return _print(name, color)
+    return g[factory](name, color, **kw)
+
+
+def _sheer(name, color):
+    """Sheer linen curtain: translucent, lets daylight through, soft sheen."""
+    mat = globals()["fabric"](name, color, sheen=0.4, roughness=0.9)
+    bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    for key in ("Transmission Weight", "Transmission"):
+        if key in bsdf.inputs:
+            bsdf.inputs[key].default_value = 0.55
+            break
+    bsdf.inputs["Roughness"].default_value = 0.9
+    return mat
+
+
+def _print(name, color):
+    """Abstract art print: two earthy colour fields with soft organic edges (no text, no real artwork)."""
+    g = globals()
+    mat, nt, bsdf = g["_fresh"](name)
+    uv = nt.nodes.new("ShaderNodeTexCoord")
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 1.6
+    noise.inputs["Detail"].default_value = 2.0
+    nt.links.new(uv.outputs["Generated"], noise.inputs["Vector"])
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].position = 0.46
+    ramp.color_ramp.elements[0].color = (0.86, 0.82, 0.74, 1)
+    ramp.color_ramp.elements[1].position = 0.50
+    ramp.color_ramp.elements[1].color = (*color, 1)
+    nt.links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.85
+    return mat
 
 
 # ---------------------------------------------------------------- primitives (item-local coords)
@@ -112,6 +160,13 @@ def _box_uv(o):
             uv.data[li].uv = (co.y, co.z) if ax == 0 else ((co.x, co.z) if ax == 1 else (co.x, co.y))
 
 
+def _soft(o, level=2):
+    """Soft furnishings (cushions, pillows, duvets, mattresses) are never boxes: round them off."""
+    mod = o.modifiers.new("Soft", "SUBSURF")
+    mod.levels = mod.render_levels = level
+    return o
+
+
 def _jitter(o, rot=0.03, scale=0.02):
     """Small imperfections: nothing in a lived-in room is perfectly aligned."""
     o.rotation_euler = [a + _RNG.uniform(-rot, rot) for a in o.rotation_euler]
@@ -152,10 +207,10 @@ def build_sofa(p, w, d, h, mat="MAT_Sofa", seats=3):
     cw = inner / seats
     for i in range(seats):
         x = -inner / 2 + cw * (i + 0.5)
-        c = box(p, f"{p.name}_seat{i}", (cw - 0.01, d - back_t - 0.02, 0.14), (x, back_t / 2, leg + 0.18 + 0.07), mat, 0.05)
+        c = _soft(box(p, f"{p.name}_seat{i}", (cw - 0.01, d - back_t - 0.02, 0.14), (x, back_t / 2, leg + 0.18 + 0.07), mat, 0.03))
         _jitter(c, 0.01, 0.01)
-        b = box(p, f"{p.name}_backcush{i}", (cw - 0.02, 0.16, 0.40), (x, -d / 2 + back_t + 0.07, leg + 0.18 + 0.14 + 0.19),
-                mat, 0.06, rot=(math.radians(-12), 0, 0))
+        b = _soft(box(p, f"{p.name}_backcush{i}", (cw - 0.02, 0.16, 0.40), (x, -d / 2 + back_t + 0.07, leg + 0.18 + 0.14 + 0.19),
+                      mat, 0.04, rot=(math.radians(-12), 0, 0)))
         _jitter(b, 0.03, 0.02)
 
 
@@ -196,15 +251,15 @@ def build_floor_lamp(p, w, d, h):
 def build_bed(p, w, d, h):
     frame_h = max(0.25, h - 0.22)
     box(p, f"{p.name}_frame", (w + 0.06, d + 0.04, frame_h), (0, 0, frame_h / 2), "MAT_Oak", 0.01)
-    box(p, f"{p.name}_mattress", (w, d - 0.04, 0.22), (0, 0.0, frame_h + 0.11), "MAT_Linen", 0.05)
+    _soft(box(p, f"{p.name}_mattress", (w, d - 0.04, 0.22), (0, 0.0, frame_h + 0.11), "MAT_Linen", 0.03), 1)
     box(p, f"{p.name}_head", (w + 0.1, 0.08, 1.05), (0, -d / 2 - 0.02, 0.525), "MAT_Armchair", 0.03)
-    duvet = box(p, f"{p.name}_duvet", (w + 0.08, d * 0.72, 0.07), (0, d * 0.14, frame_h + 0.22 + 0.03), "MAT_Linen", 0.035)
+    duvet = _soft(box(p, f"{p.name}_duvet", (w + 0.08, d * 0.72, 0.07), (0, d * 0.14, frame_h + 0.22 + 0.03), "MAT_Linen", 0.03))
     _jitter(duvet, 0.005, 0.01)
-    fold = box(p, f"{p.name}_fold", (w + 0.08, 0.22, 0.08), (0, -d * 0.22 + 0.11, frame_h + 0.22 + 0.05), "MAT_Linen", 0.04)
+    fold = _soft(box(p, f"{p.name}_fold", (w + 0.08, 0.22, 0.08), (0, -d * 0.22 + 0.11, frame_h + 0.22 + 0.05), "MAT_Linen", 0.03))
     _jitter(fold, 0.01, 0.01)
     for sx in (-1, 1):
-        pl = box(p, f"{p.name}_pillow", (w / 2 - 0.1, 0.45, 0.14), (sx * w / 4, -d / 2 + 0.3, frame_h + 0.22 + 0.08),
-                 "MAT_Linen", 0.06, rot=(math.radians(-18), 0, 0))
+        pl = _soft(box(p, f"{p.name}_pillow", (w / 2 - 0.1, 0.45, 0.14), (sx * w / 4, -d / 2 + 0.3, frame_h + 0.22 + 0.08),
+                       "MAT_Linen", 0.05, rot=(math.radians(-18), 0, 0)))
         _jitter(pl, 0.04, 0.03)
 
 
@@ -305,12 +360,59 @@ def build_tall_unit(p, w, d, h):
     box(p, f"{p.name}_handle2", (0.012, 0.012, 0.35), (w / 2 - 0.06, d / 2 - 0.004, split - 0.25), "MAT_Steel", 0.002)
 
 
+def build_curtain(p, w, d, h, folds_per_m=6.0):
+    """Sheer curtain panel with sinusoidal folds on a thin rod; item width = curtain width, height = rod height.
+    Place with front (+Y) facing into the room, a few cm in front of the window wall."""
+    amp = max(0.02, d / 2 - 0.01)
+    nx, nz = max(8, int(w * 60)), 6
+    me = bpy.data.meshes.new(f"{p.name}_sheer")
+    verts, faces = [], []
+    for j in range(nz + 1):
+        z = 0.02 + (h - 0.06) * j / nz
+        for i in range(nx + 1):
+            x = -w / 2 + w * i / nx
+            verts.append((x, amp * math.sin(2 * math.pi * folds_per_m * (x + w / 2)), z))
+    for j in range(nz):
+        for i in range(nx):
+            a = j * (nx + 1) + i
+            faces.append((a, a + 1, a + nx + 2, a + nx + 1))
+    me.from_pydata(verts, [], faces)
+    o = _obj(f"{p.name}_sheer", me, p, "MAT_Sheer")
+    sol = o.modifiers.new("Thickness", "SOLIDIFY")
+    sol.thickness = 0.002
+    cyl(p, f"{p.name}_rod", 0.01, w + 0.1, (0, 0, h - 0.02), "MAT_Metal_Black", 12).rotation_euler = (0, math.pi / 2, 0)
+
+
+def build_wall_art(p, w, d, h):
+    """Framed abstract print; place with "elevation" = bottom edge height, front facing into the room."""
+    frame = 0.025
+    box(p, f"{p.name}_frame", (w, max(d, 0.02), h), (0, 0, h / 2), "MAT_Oak", 0.002)
+    box(p, f"{p.name}_print", (w - 2 * frame, 0.004, h - 2 * frame), (0, max(d, 0.02) / 2, h / 2), "MAT_Print", 0.0)
+
+
+def build_cushion(p, w, d, h):
+    c = _soft(box(p, f"{p.name}_cushion", (w, d, h), (0, 0, h / 2), p.get("mat", "MAT_Cushion_A"), 0.04))
+    _jitter(c, 0.05, 0.04)
+
+
+def build_pendant(p, w, d, h, ceiling=2.55):
+    """Pendant fixture on a ceiling outlet: canopy, cord and a shade whose bottom is at the item's elevation.
+    (Light off in daylight shots; the fixture is what shows.)"""
+    base = p.location.z
+    cord = max(0.05, ceiling - base - h)
+    cyl(p, f"{p.name}_canopy", 0.05, 0.02, (0, 0, ceiling - base - 0.01), "MAT_Ceramic", 24)
+    cyl(p, f"{p.name}_cord", 0.003, cord, (0, 0, h + cord / 2), "MAT_Metal_Black", 8)
+    cyl(p, f"{p.name}_shade", w / 2, h, (0, 0, h / 2), "MAT_Ceramic", 48, r_top=w * 0.12, cap=False)
+    practical(p, f"{p.name}_light", (0, 0, h * 0.4), watts=40)
+
+
 BUILDERS = {
     "sofa": build_sofa, "armchair": build_armchair, "coffee_table": build_coffee_table, "rug": build_rug,
     "tv_unit": build_tv_unit, "floor_lamp": build_floor_lamp, "bed": build_bed,
     "bedside_table": build_bedside_table, "wardrobe": build_wardrobe, "bookcase": build_bookcase,
     "dining_table": build_dining_table, "chair": build_chair, "kitchen_run": build_kitchen_run,
-    "tall_unit": build_tall_unit,
+    "tall_unit": build_tall_unit, "curtain": build_curtain, "wall_art": build_wall_art,
+    "cushion": build_cushion, "pendant": build_pendant,
 }
 
 
@@ -366,6 +468,8 @@ def furnish(layout, clear_previous=True):
     if clear_previous:
         for o in list(col.all_objects):
             bpy.data.objects.remove(o, do_unlink=True)
+    _OVERRIDES.clear()
+    _OVERRIDES.update(layout.get("palette", {}))       # style = colours per material, from the layout file
     report = {"placed": [], "asset_warnings": {}, "proxy": []}
     for it in layout["items"]:
         w, d, h = it["size"]
@@ -374,6 +478,8 @@ def furnish(layout, clear_previous=True):
         root.location = (*it["center"], it.get("elevation", 0.0))
         root.rotation_euler = (0, 0, math.radians(it.get("rotation_deg", 0.0)))
         root["type"] = it["type"]
+        if it.get("material"):
+            root["mat"] = it["material"]
         if it.get("asset"):
             warn = import_asset(it["asset"], root, w, d, h)
             if warn:

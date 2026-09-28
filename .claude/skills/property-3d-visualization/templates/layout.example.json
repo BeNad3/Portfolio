@@ -1,16 +1,157 @@
 {
-  "_comment": "Proposed furniture layout for the example apartment. Metres, plan coordinates. size = [width, depth, height]; the item's FRONT is its local +Y side (the side you sit on / open / face), rotated counter-clockwise by rotation_deg (0 = front faces plan +Y, -90 = faces +X, 90 = faces -X, 180 = faces -Y). Types with clearance rules: sofa, armchair, bed, dining_table, desk, wardrobe, sideboard, bookcase, tv_unit, kitchen_run. Rugs never block. 'asset' is optional: the .blend/.glb to place instead of a proxy. tv_unit takes 'screen_in' (diagonal, inches); 'powered': true/false overrides the socket-reach check. The bedside tables here are > 1.5 m from the only bedroom socket, so the checker warns: in a real job that goes to the client as a decision (extension lead, move, or new socket as electrical work).",
-  "version": 1,
-  "items": [
-    {"id": "SOFA",   "type": "sofa",          "room": "R1", "center": [0.58, 2.00], "size": [2.20, 0.95, 0.82], "rotation_deg": -90},
-    {"id": "RUG1",   "type": "rug",           "room": "R1", "center": [1.55, 2.00], "size": [2.40, 1.70, 0.01], "rotation_deg": -90},
-    {"id": "CTABLE", "type": "coffee_table",  "room": "R1", "center": [1.80, 2.00], "size": [1.10, 0.60, 0.42], "rotation_deg": -90},
-    {"id": "TV",     "type": "tv_unit",       "room": "R1", "center": [4.825, 1.70], "size": [1.80, 0.45, 0.50], "rotation_deg": 90, "screen_in": 75},
-    {"id": "ARM1",   "type": "armchair",      "room": "R1", "center": [3.40, 3.40], "size": [0.80, 0.80, 0.80], "rotation_deg": -150},
-    {"id": "LAMP1",  "type": "floor_lamp",    "room": "R1", "center": [0.40, 3.40], "size": [0.35, 0.35, 1.60], "rotation_deg": 0},
-    {"id": "BED",    "type": "bed",           "room": "R2", "center": [7.30, 1.85], "size": [1.40, 2.00, 0.50], "rotation_deg": 90},
-    {"id": "BS1",    "type": "bedside_table", "room": "R2", "center": [8.08, 0.925], "size": [0.45, 0.40, 0.55], "rotation_deg": 90},
-    {"id": "BS2",    "type": "bedside_table", "room": "R2", "center": [8.08, 2.775], "size": [0.45, 0.40, 0.55], "rotation_deg": 90},
-    {"id": "WARD",   "type": "wardrobe",      "room": "R2", "center": [7.30, 3.80], "size": [1.00, 0.60, 2.20], "rotation_deg": 180}
-  ]
+ "_comment": "Proposed furniture layout for the example apartment. Metres, plan coordinates. size = [width, depth, height]; the item's FRONT is its local +Y side (the side you sit on / open / face), rotated counter-clockwise by rotation_deg (0 = front faces plan +Y, -90 = faces +X, 90 = faces -X, 180 = faces -Y). Types with clearance rules: sofa, armchair, bed, dining_table, desk, wardrobe, sideboard, bookcase, tv_unit, kitchen_run. Rugs never block. 'asset' is optional: the .blend/.glb to place instead of a proxy. tv_unit takes 'screen_in' (diagonal, inches); 'powered': true/false overrides the socket-reach check. The bedside tables here are > 1.5 m from the only bedroom socket, so the checker warns: in a real job that goes to the client as a decision (extension lead, move, or new socket as electrical work). Decor types (never block walking routes): curtain (width, depth = fold depth, height = rod height), wall_art ('elevation' = bottom edge), cushion ('elevation' = seat height, optional 'material'), pendant ('elevation' = shade bottom; hang it on a ceiling outlet from the dossier). Optional top-level 'palette': {material name: [r, g, b]} restyles the stand-in furniture (see PALETTE in furnish.py).",
+ "version": 1,
+ "items": [
+  {
+   "id": "SOFA",
+   "type": "sofa",
+   "room": "R1",
+   "center": [
+    0.58,
+    2.0
+   ],
+   "size": [
+    2.2,
+    0.95,
+    0.82
+   ],
+   "rotation_deg": -90
+  },
+  {
+   "id": "RUG1",
+   "type": "rug",
+   "room": "R1",
+   "center": [
+    1.55,
+    2.0
+   ],
+   "size": [
+    2.4,
+    1.7,
+    0.01
+   ],
+   "rotation_deg": -90
+  },
+  {
+   "id": "CTABLE",
+   "type": "coffee_table",
+   "room": "R1",
+   "center": [
+    1.8,
+    2.0
+   ],
+   "size": [
+    1.1,
+    0.6,
+    0.42
+   ],
+   "rotation_deg": -90
+  },
+  {
+   "id": "TV",
+   "type": "tv_unit",
+   "room": "R1",
+   "center": [
+    4.825,
+    1.7
+   ],
+   "size": [
+    1.8,
+    0.45,
+    0.5
+   ],
+   "rotation_deg": 90,
+   "screen_in": 75
+  },
+  {
+   "id": "ARM1",
+   "type": "armchair",
+   "room": "R1",
+   "center": [
+    3.4,
+    3.4
+   ],
+   "size": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "rotation_deg": -150
+  },
+  {
+   "id": "LAMP1",
+   "type": "floor_lamp",
+   "room": "R1",
+   "center": [
+    0.4,
+    3.4
+   ],
+   "size": [
+    0.35,
+    0.35,
+    1.6
+   ],
+   "rotation_deg": 0
+  },
+  {
+   "id": "BED",
+   "type": "bed",
+   "room": "R2",
+   "center": [
+    7.3,
+    1.85
+   ],
+   "size": [
+    1.4,
+    2.0,
+    0.5
+   ],
+   "rotation_deg": 90
+  },
+  {
+   "id": "BS1",
+   "type": "bedside_table",
+   "room": "R2",
+   "center": [
+    8.08,
+    0.925
+   ],
+   "size": [
+    0.45,
+    0.4,
+    0.55
+   ],
+   "rotation_deg": 90
+  },
+  {
+   "id": "BS2",
+   "type": "bedside_table",
+   "room": "R2",
+   "center": [
+    8.08,
+    2.775
+   ],
+   "size": [
+    0.45,
+    0.4,
+    0.55
+   ],
+   "rotation_deg": 90
+  },
+  {
+   "id": "WARD",
+   "type": "wardrobe",
+   "room": "R2",
+   "center": [
+    7.3,
+    3.8
+   ],
+   "size": [
+    1.0,
+    0.6,
+    2.2
+   ],
+   "rotation_deg": 180
+  }
+ ]
 }
