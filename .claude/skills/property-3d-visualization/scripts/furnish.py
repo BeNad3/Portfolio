@@ -345,7 +345,9 @@ def build_chair(p, w, d, h):
 
 
 def build_kitchen_run(p, w, d, h, module=0.6):
-    """Base cabinets: recessed plinth, carcass, fronts with 3 mm gaps and bar handles, 4 cm worktop."""
+    """Base cabinets: recessed plinth, carcass, fronts with 3 mm gaps and bar handles, 4 cm worktop.
+    Appliances from the layout item (distances measured from the run's left end, facing its front):
+    "sink_at", "hob_at" (with a built-in oven below unless "oven": false)."""
     plinth, wt = 0.10, 0.04
     body_h = h - plinth - wt
     box(p, f"{p.name}_plinth", (w, d - 0.06, plinth), (0, -0.03, plinth / 2), "MAT_Plinth", 0.0)
@@ -358,6 +360,41 @@ def build_kitchen_run(p, w, d, h, module=0.6):
             "MAT_Kitchen_Front", 0.001)
         box(p, f"{p.name}_handle", (fw * 0.5, 0.012, 0.012), (x, d / 2 - 0.004, plinth + body_h - 0.06), "MAT_Steel", 0.002)
     box(p, f"{p.name}_worktop", (w, d + 0.02, wt), (0, 0.01, h - wt / 2), "MAT_Worktop", 0.003)
+    spec = {k: p[k] for k in ("sink_at", "hob_at", "oven") if k in p}
+    if "sink_at" in spec:
+        x = -w / 2 + spec["sink_at"]
+        box(p, f"{p.name}_sink", (0.50, 0.40, 0.012), (x, 0.03, h + 0.001), "MAT_Steel", 0.004)
+        box(p, f"{p.name}_basin", (0.44, 0.34, 0.012), (x, 0.03, h + 0.003), "MAT_Plinth", 0.01)
+        cyl(p, f"{p.name}_tap", 0.02, 0.28, (x, -0.20, h + 0.14), "MAT_Steel", 16)
+        spout = cyl(p, f"{p.name}_spout", 0.011, 0.20, (x, -0.11, h + 0.27), "MAT_Steel", 12)
+        spout.rotation_euler = (math.radians(90), 0, 0)
+    if "hob_at" in spec:
+        x = -w / 2 + spec["hob_at"]
+        box(p, f"{p.name}_hob", (0.58, 0.50, 0.006), (x, 0.02, h + 0.003), "MAT_Screen", 0.002)
+        if spec.get("oven", True):
+            box(p, f"{p.name}_oven", (0.56, 0.02, 0.46), (x, d / 2 - 0.005, plinth + body_h - 0.30), "MAT_Screen", 0.002)
+            box(p, f"{p.name}_ovenbar", (0.45, 0.02, 0.015), (x, d / 2 + 0.015, plinth + body_h - 0.08), "MAT_Steel", 0.002)
+
+
+def build_wall_units(p, w, d, h, module=0.6):
+    """Wall cabinets (place with "elevation" = underside height, typically 1.45 m); optional "hood_at"
+    (distance from the left end) adds a slim extractor under the units."""
+    box(p, f"{p.name}_carcass", (w, d - 0.02, h), (0, -0.01, h / 2), "MAT_Kitchen_Front", 0.0)
+    n = max(1, round(w / module))
+    fw = w / n
+    for i in range(n):
+        x = -w / 2 + fw * (i + 0.5)
+        box(p, f"{p.name}_front", (fw - 0.003, 0.019, h - 0.003), (x, d / 2 - 0.01, h / 2), "MAT_Kitchen_Front", 0.001)
+        box(p, f"{p.name}_handle", (fw * 0.5, 0.012, 0.012), (x, d / 2 + 0.006, 0.05), "MAT_Steel", 0.002)
+    if "hood_at" in p:
+        box(p, f"{p.name}_hood", (0.60, d, 0.05), (-w / 2 + p["hood_at"], 0.0, -0.025), "MAT_Steel", 0.003)
+
+
+def build_appliance(p, w, d, h):
+    """Freestanding white appliance (washing machine / dryer) with a round door."""
+    box(p, f"{p.name}_body", (w, d, h), (0, 0, h / 2), "MAT_Ceramic", 0.01)
+    door = cyl(p, f"{p.name}_door", 0.17, 0.03, (0, d / 2, h * 0.45), "MAT_Screen", 48)
+    door.rotation_euler = (math.radians(90), 0, 0)
 
 
 def build_tall_unit(p, w, d, h):
@@ -446,6 +483,7 @@ BUILDERS = {
     "dining_table": build_dining_table, "chair": build_chair, "kitchen_run": build_kitchen_run,
     "tall_unit": build_tall_unit, "curtain": build_curtain, "wall_art": build_wall_art,
     "cushion": build_cushion, "pendant": build_pendant, "plant": build_plant,
+    "wall_units": build_wall_units, "appliance": build_appliance,
 }
 
 
@@ -513,6 +551,9 @@ def furnish(layout, clear_previous=True):
         root["type"] = it["type"]
         if it.get("material"):
             root["mat"] = it["material"]
+        for key in ("sink_at", "hob_at", "oven", "hood_at"):   # appliance positions for kitchen builders
+            if key in it:
+                root[key] = it[key]
         if it.get("asset"):
             warn = import_asset(it["asset"], root, w, d, h)
             if warn:

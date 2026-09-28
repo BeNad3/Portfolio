@@ -205,7 +205,9 @@ def run(dossier, layout):
         if outside > MIN_OVERLAP:
             issue("error", it["id"], f"extends outside room {it.get('room')} by ~{outside * CELL * CELL:.2f} m²")
 
-    blocking = [it for it in items if it["type"] not in NON_BLOCKING]
+    # wall-mounted items (wall cabinets, shelves) hang above the floor: they neither collide with base
+    # units nor narrow walking routes
+    blocking = [it for it in items if it["type"] not in NON_BLOCKING and it.get("elevation", 0.0) < 1.2]
     for i, a in enumerate(blocking):
         for b in blocking[i + 1:]:
             n = len(item_cells[a["id"]] & item_cells[b["id"]])
