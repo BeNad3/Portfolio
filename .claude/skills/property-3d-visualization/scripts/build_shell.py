@@ -177,7 +177,7 @@ def cut_openings(d, walls_by_id, cols):
         _apply_boolean(wall_obj, cutter, "DIFFERENCE")
         cutter.hide_render = True
         cutter.hide_set(True)
-        if op["type"] == "window":
+        if op["type"] == "window" or op.get("glazed"):     # glazed doors get glass too
             pane = _box(f"GEO_Glass_{op['id']}", (op["width"], 0.008, head - sill), centre, rot,
                         cols["openings"], glass)
             pane["evidence"] = op.get("evidence", "unknown")

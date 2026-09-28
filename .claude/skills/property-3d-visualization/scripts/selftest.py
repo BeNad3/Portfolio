@@ -1,6 +1,7 @@
 """Regression test for every script in this skill, on the bundled example apartment.
 
     python selftest.py            # needs Pillow + numpy; Blender tests also need `bpy`
+    python selftest.py --with-solver   # + camera-solver recovery test (~2 min, needs scipy)
                                   # (pip install bpy on Python 3.11, or: blender -b -P selftest.py)
 
 Checks behaviour, not just "it runs": good inputs pass, broken inputs are rejected, measurements
@@ -161,11 +162,44 @@ def test_blender(tmp):
     check("render: furnished scene renders", os.path.exists(s.render.filepath))
 
 
+def test_solver(tmp):
+    """Render the example room from a known camera, solve it from a wrong start, compare (~2 min)."""
+    try:
+        import bpy
+    except ImportError:
+        print("SKIP  solver test (no bpy)")
+        return
+    ns = {}
+    exec(open(os.path.join(HERE, "build_shell.py")).read().split("if __name__")[0], ns)
+    d = json.load(open(DOSSIER))
+    d["cameras"] = [d["cameras"][0]]
+    d.pop("plan_underlay", None)
+    ns["build"](d, clear=True)
+    ns["clay_render"](os.path.join(tmp, "clay"), width=900)
+    os.makedirs(os.path.join(tmp, "proj", "00_input"), exist_ok=True)
+    os.makedirs(os.path.join(tmp, "proj", "01_analysis"), exist_ok=True)
+    os.replace(os.path.join(tmp, "clay", "clay_CAM_P1.png"), os.path.join(tmp, "proj", "00_input", "p1.png"))
+    truth = d["cameras"][0]
+    d["cameras"] = [{"id": "P1", "photo": "00_input/p1.png", "position": [4.35, 3.35, 1.3],
+                     "look_at": [1.0, 2.0, 1.2], "focal_mm_35eq": 16}]
+    dp = os.path.join(tmp, "proj", "01_analysis", "property_dossier.json")
+    json.dump(d, open(dp, "w"))
+    code, rep = tool("solve_camera.py", "--dossier", dp, "--camera", "P1", "--free-ceiling")
+    t_head = math.degrees(math.atan2(truth["look_at"][1] - truth["position"][1], truth["look_at"][0] - truth["position"][0]))
+    dh = (rep["heading_deg"] - t_head + 180) % 360 - 180
+    check("solver: edges realign from a wrong start", rep["quality"]["median_px"] <= 1.5 and rep["quality"]["within_3px"] >= 0.7,
+          f"median {rep['quality']['median_px']} px")
+    check("solver: heading within 5 deg, ceiling within 3 %", abs(dh) < 5 and abs(rep["ceiling_height"] - 2.5) < 0.075,
+          f"heading error {dh:+.1f} deg, ceiling {rep['ceiling_height']}")
+
+
 def main():
     with tempfile.TemporaryDirectory() as tmp:
         test_layout(tmp)
         test_image_tools(tmp)
         test_blender(tmp)
+        if "--with-solver" in sys.argv:
+            test_solver(tmp)
     failed = [n for n, ok in RESULTS if not ok]
     print(f"\n{len(RESULTS) - len(failed)}/{len(RESULTS)} passed" + (f"; FAILED: {failed}" if failed else ""))
     return 1 if failed else 0

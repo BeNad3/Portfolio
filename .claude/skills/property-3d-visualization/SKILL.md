@@ -92,8 +92,15 @@ Needs the Blender MCP (`references/tooling-setup.md`).
    `COL_Furniture_Proposed`, `COL_Lighting`. It refuses a dossier whose openings do not fit their walls.
    Headless alternative: `blender -b -P build_shell.py -- dossier.json --out shell.blend --clay-render clay/`.
 2. **Plan check:** top orthographic view over `REF_FloorPlan`; walls and openings must sit on the drawing.
-3. **Photo-match every camera** (the key accuracy gate). For each photo camera, refine position,
-   rotation and focal length until the clay render lines up with the photo, then run:
+3. **Photo-match every camera** (the key accuracy gate). Solve each photo camera automatically:
+   ```bash
+   python <skills>/property-3d-visualization/scripts/solve_camera.py --dossier 01_analysis/property_dossier.json \
+     --camera P1 --mask 0.76,0.84,1,1 --free-ceiling --out 02_blender/qa/solve_P1.png --write
+   ```
+   It fits position, heading, lens and principal point (and with `--free-ceiling` the ceiling height)
+   to the photo's edges. Ceiling heights that agree across photos upgrade an inferred height to
+   photo-derived. Views showing only two walls leave a small step-back/zoom ambiguity (same image,
+   ±0.3 m along the view axis). Then confirm on a clay render:
    ```bash
    python <skills>/property-3d-visualization/scripts/photo_match_overlay.py \
      --photo 00_input/photos/living_01.jpg --render 02_blender/clay/clay_CAM_P1.png --out 02_blender/qa/P1.png

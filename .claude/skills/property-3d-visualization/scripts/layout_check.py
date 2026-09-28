@@ -176,7 +176,7 @@ def run(dossier, layout):
             hy = ay + u[1] * hs + left[1] * sgn * t / 2
             closed = u if op["hinge"] == "a" else (-u[0], -u[1])
             opened = (left[0] * sgn, left[1] * sgn)
-            R = op["width"]
+            R = op.get("leaf_width", op["width"])       # glazed units: only the opening leaf swings
 
             def in_sector(x, y, hx=hx, hy=hy, closed=closed, opened=opened, R=R):
                 dx, dy = x - hx, y - hy
