@@ -170,14 +170,93 @@ def cost(params, pts, dist, valid, edges_yx, size, room_poly):
     q = np.minimum(dmodel[edges_yx[0], edges_yx[1]], CAP)
     p2m = np.mean(np.sqrt(q * q + 4.0) - 2.0)
     c = m2p + p2m
-    if not _in_poly((params[0], params[1]), room_poly):   # the camera stands inside the room
+    if room_poly is not None and not _in_poly((params[0], params[1]), room_poly):   # camera inside the room
         c += 50
     return c
 
 
 # ---------------------------------------------------------------- main
 
-def solve(d, cam, photo_path, masks, free_ceiling, work_width=480):
+# Plausible real-estate cameras: anything outside these is a degenerate fit, not a photo.
+LIMITS = {"hfov": (math.radians(40), math.radians(130)), "z": (0.8, 2.0), "H": (2.2, 3.3)}
+
+
+def plausibility_penalty(params, H=None):
+    pen = 0.0
+    checks = [(params[6], LIMITS["hfov"]), (params[2], LIMITS["z"])] + ([(H, LIMITS["H"])] if H else [])
+    for v, (lo, hi) in checks:
+        pen += 50 * (max(0.0, lo - v) + max(0.0, v - hi))
+    return pen
+
+
+def solve_points(points, x0, H0, size, free_ceiling, area_poly=None, free_shift_x=False):
+    """Camera from 2D-3D correspondences. `points`: [{"xyz": [x, y, z or "H"], "px": [u, v]}], pixels in
+    the letterbox-cropped photo. Returns params (9), H and the RMS reprojection error in px.
+
+    Horizontal principal-point shift is fixed at 0 unless `free_shift_x` (real-estate photos are
+    vertically shifted to keep verticals straight, not horizontally); with few points a free
+    horizontal shift trades off against camera position and lets the camera drift out of the room."""
+    # "line" items: {"line": [[x,y,z|"H"], [x,y,z|"H"]], "px": [u, v]} = the pixel lies somewhere on
+    # that 3D line (e.g. a skirting line whose visible end points are unknown)
+    lines = [p for p in points if "line" in p]
+    points = [p for p in points if "xyz" in p]
+    fit_H = free_ceiling and any(p["xyz"][2] == "H" for p in points) or \
+        free_ceiling and any(q[2] == "H" for p in lines for q in p["line"])
+
+    def z_of(q, H):
+        return H if q[2] == "H" else q[2]
+
+    def xyz(H):
+        return np.array([[p["xyz"][0], p["xyz"][1], z_of(p["xyz"], H)] for p in points], float).reshape(-1, 3)
+    uv = np.array([p["px"] for p in points], float).reshape(-1, 2)
+
+    def resid(v):
+        v = v.copy()
+        if not free_shift_x:
+            v[7] = 0.0
+        H = v[9] if fit_H else H0
+        px, py, depth = project(v[:9], xyz(H), size)
+        r = np.concatenate([px - uv[:, 0], py - uv[:, 1]])
+        r[np.concatenate([depth, depth]) <= 0.05] = 1e3
+        for p in lines:
+            ends = np.array([[q[0], q[1], z_of(q, H)] for q in p["line"]], float)
+            t = np.linspace(0, 1, 60)[:, None]
+            lx, ly, ldep = project(v[:9], ends[0] * (1 - t) + ends[1] * t, size)
+            front = ldep > 0.05                         # use only the part of the line in front of the camera
+            if front.sum() < 2:
+                r = np.append(r, 1e3)
+                continue
+            i0, i1 = np.nonzero(front)[0][[0, -1]]
+            a = np.array([lx[i0], ly[i0]])
+            b = np.array([lx[i1], ly[i1]])
+            n = np.array([-(b - a)[1], (b - a)[0]])
+            r = np.append(r, float(np.dot(np.array(p["px"]) - a, n) / (np.linalg.norm(n) + 1e-9)))
+        pen = plausibility_penalty(v[:9], H if fit_H else None)
+        regions = area_poly if isinstance(area_poly, list) and area_poly and isinstance(area_poly[0], list) else \
+            ([area_poly] if area_poly is not None else [])
+        if regions and not any(_in_poly((v[0], v[1]), reg) for reg in regions):
+            pen += 200
+        return np.append(r, pen)
+
+    v0 = np.append(x0, H0) if fit_H else np.asarray(x0, float)
+    best = None
+    for dyaw in (0.0, -0.4, 0.4):
+        for hf in (x0[6], math.radians(70), math.radians(100)):
+            v = v0.copy()
+            v[3] += dyaw
+            v[6] = hf
+            r = optimize.least_squares(resid, v, method="trf", max_nfev=20000)
+            if best is None or r.cost < best.cost:
+                best = r
+    v = best.x.copy()
+    if not free_shift_x:
+        v[7] = 0.0
+    rms = float(np.sqrt(np.mean(resid(v)[:-1] ** 2)))
+    return v[:9], (float(v[9]) if fit_H else H0), rms
+
+
+def solve(d, cam, photo_path, masks, free_ceiling, work_width=480, points=None, refine=True, room_id=None,
+          anywhere=False):
     img = ImageOps.exif_transpose(Image.open(photo_path)).convert("RGB")
     box = content_box(img)
     img = img.crop(box)
@@ -190,44 +269,75 @@ def solve(d, cam, photo_path, masks, free_ceiling, work_width=480):
     lv = d["levels"][0]
     H0 = lv["ceiling_height"]
     pos = np.array(cam["position"], float)
-    room = next(r for r in d["rooms"] if _in_poly(pos[:2], [tuple(p) for p in r["polygon"]]))
+    if room_id:
+        room = next(r for r in d["rooms"] if r["id"] == room_id)
+    else:
+        room = next(r for r in d["rooms"] if _in_poly(pos[:2], [tuple(p) for p in r["polygon"]]))
     poly = [tuple(p) for p in room["polygon"]]
+    area_poly = poly if _in_poly(pos[:2], poly) else None     # doorway cameras may stand outside the room
+    if anywhere:
+        area_poly = None
     look = np.array(cam["look_at"], float) - pos
     yaw0 = math.atan2(look[1], look[0])
     hfov0 = 2 * math.atan(36 / (2 * cam.get("focal_mm_35eq", 20)))
+    point_rms = None
 
-    def f_of(H):
+    def f_of(H, prior=None):
         pts = sample_segments(model_segments(d, room, H), 120)
-        return lambda p: cost(p, pts, dist, valid, eyx, ssize, poly)
 
-    best = None
-    f0 = f_of(H0)
-    for dyaw in (0.0, -0.3, 0.3):
-        for hf in (hfov0, math.radians(75), math.radians(95)):
-            x0 = np.array([pos[0], pos[1], pos[2], yaw0 + dyaw, 0.0, 0.0, hf, 0.0, 0.0])
-            res = optimize.minimize(f0, x0, method="Powell", options={"maxiter": 4000, "xtol": 1e-4, "ftol": 1e-5})
-            if best is None or res.fun < best.fun:
-                best = res
-    params, H = best.x, H0
-    if free_ceiling:
-        def fH(p):
-            if not 2.2 <= p[9] <= 3.3:
-                return 1e3
-            return f_of(p[9])(p[:9])
-        r2 = optimize.minimize(fH, np.append(params, H0), method="Powell",
-                               options={"maxiter": 6000, "xtol": 1e-4, "ftol": 1e-5})
-        params, H = r2.x[:9], float(r2.x[9])
+        def f(p):
+            c = cost(p, pts, dist, valid, eyx, ssize, area_poly) + plausibility_penalty(p, H)
+            if prior is not None:                 # stay consistent with the marked correspondences
+                ppx, ppy, _ = project(p, prior[0], ssize)
+                c += 0.5 * float(np.mean(np.hypot(ppx - prior[1][:, 0], ppy - prior[1][:, 1])))
+            return c
+        return f
+
+    if points:
+        x0 = np.array([pos[0], pos[1], pos[2], yaw0, 0.0, 0.0, hfov0, 0.0, 0.0])
+        # doorway cameras (outside the matched room) may stand in any room of the flat
+        region = area_poly if area_poly is not None else [[tuple(p) for p in r["polygon"]] for r in d["rooms"]]
+        if anywhere:
+            region = None                         # e.g. photographer standing in a balcony doorway
+        params, H, point_rms = solve_points(points, x0, H0, size, free_ceiling, region)
+        params = params.copy()
+        params[7:9] *= k                                      # to working resolution
+        pp = [p for p in points if "xyz" in p]
+        prior = (np.array([[p["xyz"][0], p["xyz"][1], H if p["xyz"][2] == "H" else p["xyz"][2]] for p in pp], float),
+                 np.array([p["px"] for p in pp], float) * k)
+        if refine and pp:
+            params = optimize.minimize(f_of(H, prior), params, method="Powell",
+                                       options={"maxiter": 3000, "xtol": 1e-4, "ftol": 1e-5}).x
+    else:
+        best = None
+        f0 = f_of(H0)
+        for dyaw in (0.0, -0.3, 0.3):
+            for hf in (hfov0, math.radians(75), math.radians(95)):
+                x0 = np.array([pos[0], pos[1], pos[2], yaw0 + dyaw, 0.0, 0.0, hf, 0.0, 0.0])
+                res = optimize.minimize(f0, x0, method="Powell", options={"maxiter": 4000, "xtol": 1e-4, "ftol": 1e-5})
+                if best is None or res.fun < best.fun:
+                    best = res
+        params, H = best.x, H0
+        if free_ceiling:
+            def fH(p):
+                if not 2.2 <= p[9] <= 3.3:
+                    return 1e3
+                return f_of(p[9])(p[:9])
+            r2 = optimize.minimize(fH, np.append(params, H0), method="Powell",
+                                   options={"maxiter": 6000, "xtol": 1e-4, "ftol": 1e-5})
+            params, H = r2.x[:9], float(r2.x[9])
 
     # refine at double resolution: sharper edges break the dolly/zoom ambiguity of the coarse pass
     k2 = min(1.0, 2 * k)
-    big = img.resize((round(size[0] * k2), round(size[1] * k2)), Image.LANCZOS)
-    bdist, bvalid, bedges = edge_distance(big, masks)
-    beyx = np.nonzero(bedges)
-    pts_b = sample_segments(model_segments(d, room, H), 240)
     p_b = params.copy()
     p_b[7:9] *= k2 / k
-    fb = lambda p: cost(p, pts_b, bdist, bvalid, beyx, big.size, poly)  # noqa: E731
-    p_b = optimize.minimize(fb, p_b, method="Powell", options={"maxiter": 3000, "xtol": 1e-5, "ftol": 1e-6}).x
+    if refine and not points:
+        big = img.resize((round(size[0] * k2), round(size[1] * k2)), Image.LANCZOS)
+        bdist, bvalid, bedges = edge_distance(big, masks)
+        beyx = np.nonzero(bedges)
+        pts_b = sample_segments(model_segments(d, room, H), 240)
+        fb = lambda p: cost(p, pts_b, bdist, bvalid, beyx, big.size, area_poly) + plausibility_penalty(p, H)  # noqa: E731
+        p_b = optimize.minimize(fb, p_b, method="Powell", options={"maxiter": 3000, "xtol": 1e-5, "ftol": 1e-6}).x
 
     # quality at full resolution
     params = p_b.copy()
@@ -244,6 +354,7 @@ def solve(d, cam, photo_path, masks, free_ceiling, work_width=480):
         "median_px": round(float(np.median(r)), 2),
         "within_3px": round(float(np.mean(r <= 3)), 3),
         "visible_model_share": round(float(vis.sum()) / len(pts), 3),
+        "point_rms_px": None if point_rms is None else round(point_rms, 2),
         "room": room["id"],
     }
 
@@ -273,6 +384,10 @@ def main(argv=None):
     ap.add_argument("--camera", required=True)
     ap.add_argument("--mask", action="append", default=[], help="x0,y0,x1,y1 in 0-1 of the cropped photo")
     ap.add_argument("--free-ceiling", action="store_true")
+    ap.add_argument("--points", help="JSON file: [{'xyz': [x, y, z or 'H'], 'px': [u, v]}] in cropped-photo pixels")
+    ap.add_argument("--room", help="room id whose edges to match (default: the room containing the camera)")
+    ap.add_argument("--no-refine", action="store_true", help="with --points: skip the edge refinement")
+    ap.add_argument("--anywhere", action="store_true", help="do not keep the camera inside the rooms (doorways, loggias)")
     ap.add_argument("--out")
     ap.add_argument("--write", action="store_true", help="store the solved camera in the dossier")
     args = ap.parse_args(argv)
@@ -282,7 +397,10 @@ def main(argv=None):
     root = d.get("project", {}).get("root", os.path.dirname(os.path.dirname(dpath)))
     cam = next(c for c in d["cameras"] if c["id"] == args.camera)
     masks = [tuple(float(v) for v in m.split(",")) for m in args.mask]
-    img, box, size, params, H, segs, q = solve(d, cam, os.path.join(root, cam["photo"]), masks, args.free_ceiling)
+    points = json.load(open(args.points, encoding="utf-8")) if args.points else None
+    img, box, size, params, H, segs, q = solve(d, cam, os.path.join(root, cam["photo"]), masks, args.free_ceiling,
+                                               points=points, refine=not args.no_refine, room_id=args.room,
+                                               anywhere=args.anywhere)
     x, y, z, yaw, pitch, roll, hfov, dx, dy = params
     out = {
         "camera": args.camera,
@@ -293,7 +411,9 @@ def main(argv=None):
         "principal_offset_px": [round(float(dx), 1), round(float(dy), 1)],
         "ceiling_height": round(H, 3), "ceiling_solved": args.free_ceiling,
         "photo_crop_box": list(box), "quality": q, "blender": to_blender(params, size),
-        "verdict": "good" if q["median_px"] <= 3.0 and q["within_3px"] >= 0.6 and q["visible_model_share"] >= 0.25 else "check",
+        "verdict": "good" if (q["median_px"] <= 3.0 and q["within_3px"] >= 0.6 and q["visible_model_share"] >= 0.25
+                              and (q["point_rms_px"] is None or q["point_rms_px"] <= 5.0)
+                              and plausibility_penalty(params, H) == 0) else "check",
     }
     if args.out:
         sheet = img.copy()
@@ -306,6 +426,16 @@ def main(argv=None):
                 dr.line(pts, fill=(255, 30, 30), width=2)
         for m in masks:
             dr.rectangle([m[0] * size[0], m[1] * size[1], m[2] * size[0], m[3] * size[1]], outline=(255, 200, 0), width=2)
+        for p in points or []:
+            if "xyz" not in p:                                                             # line constraint
+                u, v = p["px"]
+                dr.rectangle([u - 5, v - 5, u + 5, v + 5], outline=(0, 200, 0), width=2)
+                continue
+            xyz = np.array([[p["xyz"][0], p["xyz"][1], H if p["xyz"][2] == "H" else p["xyz"][2]]], float)
+            qx, qy, _ = project(params, xyz, size)
+            u, v = p["px"]
+            dr.ellipse([u - 6, v - 6, u + 6, v + 6], outline=(0, 200, 0), width=2)       # marked
+            dr.ellipse([qx[0] - 3, qy[0] - 3, qx[0] + 3, qy[0] + 3], fill=(0, 90, 255))    # reprojected
         sheet.save(args.out)
         out["sheet"] = args.out
     if args.write:

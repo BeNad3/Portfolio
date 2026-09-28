@@ -45,7 +45,7 @@ ZONES = {
     "sideboard":    [("front", 0.60, {"rug"}, "warning")],
     "bookcase":     [("front", 0.60, {"rug"}, "warning")],
     "tv_unit":      [("front", 0.60, {"rug", "coffee_table"}, "warning")],
-    "kitchen_run":  [("front", 1.00, {"rug"}, "error")],
+    "kitchen_run":  [("front", 1.00, {"rug", "kitchen_run", "tall_unit"}, "error")],   # L/U kitchens meet at corners
 }
 NON_BLOCKING = {"rug", "ceiling_light", "wall_art", "curtain"}
 POWERED = {"tv_unit", "floor_lamp", "bedside_table", "desk", "table_lamp"}   # override per item: "powered": true/false
@@ -156,12 +156,18 @@ def run(dossier, layout):
         t = w["thickness"]
         s0, s1 = op["offset"], op["offset"] + op["width"]
         mid = (s0 + s1) / 2
+        if op.get("leaf_width"):                      # people walk through the opening leaf, not the sidelight
+            lw = op["leaf_width"]
+            walk_mid = s0 + lw / 2 if op.get("hinge", "a") == "a" else s1 - lw / 2
+        else:
+            walk_mid = mid
         cx, cy = ax + u[0] * mid, ay + u[1] * mid
         door_cells |= g.cells(poly=rect_corners(cx, cy, op["width"], t + 0.1,
                                                 math.degrees(math.atan2(u[1], u[0]))))
+        wx, wy = ax + u[0] * walk_mid, ay + u[1] * walk_mid
         for sgn in (1, -1):
-            px = cx + left[0] * sgn * (t / 2 + 0.35)
-            py = cy + left[1] * sgn * (t / 2 + 0.35)
+            px = wx + left[0] * sgn * (t / 2 + 0.35)
+            py = wy + left[1] * sgn * (t / 2 + 0.35)
             c = (int((px - g.x0) / CELL), int((py - g.y0) / CELL))
             room_here = next((rid for rid, f in floor.items() if c in f), None)
             if room_here:

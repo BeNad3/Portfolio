@@ -234,6 +234,16 @@ def build_cameras(d, cols, base_dir):
         cam.location = Vector(c["position"])
         direction = Vector(c["look_at"]) - cam.location
         cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+        solved = c.get("blender")                     # exact values from solve_camera.py
+        if solved:
+            cam.location = Vector(solved["location"])
+            cam.rotation_euler = [math.radians(a) for a in solved["rotation_euler_deg"]]
+            cam_data.lens = solved["lens_mm"]
+            cam_data.sensor_width = solved["sensor_width_mm"]
+            cam_data.sensor_fit = solved["sensor_fit"]
+            cam_data.shift_x = solved["shift_x"]
+            cam_data.shift_y = solved["shift_y"]
+            cam["solved_resolution"] = solved["resolution"]
         cam["photo"] = c.get("photo", "")
         cam["evidence"] = c.get("evidence", "estimated")
         photo = os.path.join(base_dir, c["photo"]) if c.get("photo") else None
@@ -378,6 +388,21 @@ def clay_render(out_dir, width=1600, engine="CYCLES", samples=24):
         world.use_nodes = True
         world.node_tree.nodes["Background"].inputs["Strength"].default_value = 3.0
     os.makedirs(out_dir, exist_ok=True)
+    # Clay tones chosen for edges, not looks: floor / walls / ceiling must differ or white-on-white
+    # corners vanish and the photo-match gate scores the lighting instead of the geometry. Glass is
+    # hidden because its reflections add edges that do not exist in the photo.
+    tones = {"MAT_Floor": 0.35, "MAT_Wall": 0.70, "MAT_Ceiling": 0.92}
+    saved = {}
+    for name, v in tones.items():
+        m = bpy.data.materials.get(name)
+        if m and m.use_nodes:
+            bsdf = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+            if bsdf and not bsdf.inputs["Base Color"].is_linked:
+                saved[name] = tuple(bsdf.inputs["Base Color"].default_value)
+                bsdf.inputs["Base Color"].default_value = (v, v, v, 1.0)
+    glass = [o for o in bpy.data.objects if o.name.startswith("GEO_Glass_") and not o.hide_render]
+    for o in glass:
+        o.hide_render = True
     for cam in [o for o in bpy.data.objects if o.type == "CAMERA" and o.name.startswith("CAM_")]:
         px = cam.get("photo_px")
         aspect = (px[0] / px[1]) if px else 1.5
@@ -399,6 +424,11 @@ def clay_render(out_dir, width=1600, engine="CYCLES", samples=24):
             bpy.data.objects.remove(lamp)
             bpy.data.lights.remove(ld)
         print(f"shell:clay_render {scene.render.filepath}")
+    for o in glass:
+        o.hide_render = False
+    for name, col in saved.items():
+        bsdf = next(n for n in bpy.data.materials[name].node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        bsdf.inputs["Base Color"].default_value = col
 
 
 if __name__ == "__main__":

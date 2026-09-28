@@ -92,15 +92,26 @@ Needs the Blender MCP (`references/tooling-setup.md`).
    `COL_Furniture_Proposed`, `COL_Lighting`. It refuses a dossier whose openings do not fit their walls.
    Headless alternative: `blender -b -P build_shell.py -- dossier.json --out shell.blend --clay-render clay/`.
 2. **Plan check:** top orthographic view over `REF_FloorPlan`; walls and openings must sit on the drawing.
-3. **Photo-match every camera** (the key accuracy gate). Solve each photo camera automatically:
+3. **Photo-match every camera** (the key accuracy gate). Mark correspondences, then solve:
+   - Make a gridded copy of the photo and read 6-10 points whose 3D position the dossier knows: room
+     corners at floor and ceiling (`"H"` = ceiling height), door/window jambs at the floor line. Add
+     `{"line": [[x,y,z],[x,y,z]], "px": [u,v]}` items for pixels on a skirting line whose ends are not
+     visible: they pin the near walls, which corner points alone leave loose.
    ```bash
    python <skills>/property-3d-visualization/scripts/solve_camera.py --dossier 01_analysis/property_dossier.json \
-     --camera P1 --mask 0.76,0.84,1,1 --free-ceiling --out 02_blender/qa/solve_P1.png --write
+     --camera P1 --room Z1 --points 02_blender/qa/points_P1.json --free-ceiling --mask 0.76,0.84,1,1 \
+     --out 02_blender/qa/solve_P1.png --write
    ```
-   It fits position, heading, lens and principal point (and with `--free-ceiling` the ceiling height)
-   to the photo's edges. Ceiling heights that agree across photos upgrade an inferred height to
-   photo-derived. Views showing only two walls leave a small step-back/zoom ambiguity (same image,
-   ±0.3 m along the view axis). Then confirm on a clay render:
+   It fits position, heading, lens and vertical principal shift (horizontal shift fixed at 0), refines on
+   the photo's edges, and rejects implausible cameras (lens outside 40-130 deg, height outside 0.8-2.0 m).
+   **Read the sheet, not only the score:** a model line that was not marked but falls on the photo
+   (e.g. an unmarked skirting) is the real proof; a tight fit with an odd answer (ceiling 2.75 m, camera at
+   knee height) means a misread point. Ceiling heights that agree across photos upgrade an inferred
+   height to photo-derived. Fully automatic edge matching (no `--points`) latches onto strong window
+   frames on real photos; use it only on renders or as refinement. A photo that cannot be matched is a
+   **conflict** (record it, ask for a measurement), never a reason to bend the model. With a solved
+   camera, heights can be *measured*: back-project a pixel onto the known wall plane (window head,
+   transom, socket height, ceiling outlets). Then confirm on a clay render:
    ```bash
    python <skills>/property-3d-visualization/scripts/photo_match_overlay.py \
      --photo 00_input/photos/living_01.jpg --render 02_blender/clay/clay_CAM_P1.png --out 02_blender/qa/P1.png
@@ -108,9 +119,11 @@ Needs the Blender MCP (`references/tooling-setup.md`).
    Target `edge_match >= 0.75` **and** a visual check of the sheet: wall corners, ceiling line, window
    and door edges on the photo's lines. If the camera cannot be matched, the geometry is wrong: go back
    to the dossier, fix the measurement, rebuild. Record each camera's final values in the dossier.
-4. **Detail the architecture that the photos show:** window frames and mullions, door leaves and
-   casings, skirting, cornices, radiators with the right model (panel/column), switches and sockets,
-   ceiling lights, beams. Real dimensions, 1–3 mm bevels on visible edges.
+4. **Detail the architecture that the photos show:** `scripts/add_details.py` builds window/glazed-door
+   frames (with `transom`, `mullions`, `leaf_width` from the dossier) and skirting per room (interrupted at
+   doors). Model by hand what it does not cover: door leaves and casings, cornices, radiators with the
+   right model, switches, ceiling lights, beams. Real dimensions, 1–3 mm bevels on visible edges.
+   Wall ends must not poke through neighbouring wall faces (a 2 cm step shows as a seam in renders).
 5. **Model existing furniture** (`COL_Furniture_Existing`) at its estimated size when the user wants
    to keep it, or when a "before" image is requested.
 6. **Gate:** clay renders from all photo cameras + the overlay sheets, shown to the user. Save `existing.blend`.

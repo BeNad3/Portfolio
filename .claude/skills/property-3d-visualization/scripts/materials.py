@@ -194,7 +194,7 @@ def plaster_paint(name, color=(0.86, 0.85, 0.82), roughness=0.88, bump=0.02):
     return mat
 
 
-def parquet(name, board_w=0.07, board_l=0.60, tone=(0.50, 0.34, 0.20), varnish=0.35, along_x=True):
+def parquet(name, board_w=0.07, board_l=0.60, tone=(0.50, 0.34, 0.20), varnish=0.35, along_x=True, variation=0.2):
     """Procedural strip parquet: staggered boards with per-board tone variation, grain along the
     board, bevelled joints and a satin varnish coat. Use real textures when available."""
     mat, nt, bsdf = _fresh(name)
@@ -215,8 +215,8 @@ def parquet(name, board_w=0.07, board_l=0.60, tone=(0.50, 0.34, 0.20), varnish=0
     brick.inputs["Mortar Size"].default_value = 0.0012
     brick.inputs["Mortar Smooth"].default_value = 0.6
     brick.inputs["Bias"].default_value = 0.0
-    lo = tuple(c * 0.78 for c in tone)
-    hi = tuple(min(0.9, c * 1.15) for c in tone)
+    lo = tuple(c * (1 - variation) for c in tone)                 # board-to-board tone spread
+    hi = tuple(min(0.9, c * (1 + 0.75 * variation)) for c in tone)
     brick.inputs["Color1"].default_value = (*lo, 1.0)
     brick.inputs["Color2"].default_value = (*hi, 1.0)
     brick.inputs["Mortar"].default_value = (*(c * 0.35 for c in tone), 1.0)

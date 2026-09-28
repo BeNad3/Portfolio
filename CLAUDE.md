@@ -22,7 +22,7 @@ Non-negotiables:
 
 - `.claude/skills/property-3d-visualization/`: orchestrator skill, tested scripts
   (`build_shell.py`, `solve_camera.py`, `photo_match_overlay.py`, `layout_check.py`, `materials.py`, `furnish.py`,
-  `photoreal_setup.py`, `look_match.py`, `finish.py`), dossier and layout templates, references.
+  `photoreal_setup.py`, `look_match.py`, `add_details.py`, `finish.py`), dossier and layout templates, references.
   After editing any script run `scripts/selftest.py` (25 behaviour checks on the example apartment).
 - `.claude/skills/*`: curated third-party skills (Blender, archviz, arch-render, real-estate,
   ComfyUI, upscaling, n8n). Sources, commits and licenses: `.claude/third_party/NOTICE.md`.
