@@ -83,18 +83,29 @@ def add_frames(d, profile=0.07, depth=0.07, mat=None):
             p = a + u * along
             _box(f"DET_Frame_{op['id']}_{tag}", (w, depth, h), Vector((p.x, p.y, z0 + zc)), rot, mat)
             made += 1
+        # Pieces butt against each other and never overlap: overlapping boxes share coplanar faces,
+        # which Cycles renders as black specks at every frame corner.
+        inner = W - 2 * profile
+        e = 0.001                                     # hairline gap instead of touching faces
         piece("L", s0 + profile / 2, sill + H / 2, profile, H)
         piece("R", s0 + W - profile / 2, sill + H / 2, profile, H)
-        piece("T", s0 + W / 2, head - profile / 2, W, profile)
-        piece("B", s0 + W / 2, sill + profile / 2, W, profile)
-        if op.get("transom"):
-            piece("TR", s0 + W / 2, op["transom"], W, profile)
+        piece("T", s0 + W / 2, head - profile / 2, inner - 2 * e, profile)
+        piece("B", s0 + W / 2, sill + profile / 2, inner - 2 * e, profile)
+        tr = op.get("transom")
+        if tr:
+            piece("TR", s0 + W / 2, tr, inner - 2 * e, profile)
         mullions = list(op.get("mullions", []))
         if op.get("leaf_width"):
             mullions.append(op["leaf_width"] if op.get("hinge", "a") == "a" else W - op["leaf_width"])
         for i, m in enumerate(mullions):
-            lo = op["transom"] if op.get("mullion_above_transom") and op.get("transom") else sill
-            piece(f"M{i}", s0 + m, (lo + head) / 2, profile, head - lo)
+            lo = (tr + profile / 2) if op.get("mullion_above_transom") and tr else sill + profile
+            hi = head - profile
+            if tr and not op.get("mullion_above_transom"):
+                # full-height mullion crossing a transom: split in two, butting against it
+                piece(f"M{i}a", s0 + m, (lo + tr - profile / 2) / 2, profile, tr - profile / 2 - lo - e)
+                piece(f"M{i}b", s0 + m, (tr + profile / 2 + hi) / 2, profile, hi - tr - profile / 2 - e)
+            else:
+                piece(f"M{i}", s0 + m, (lo + hi) / 2, profile, hi - lo - 2 * e)
     return made
 
 

@@ -155,7 +155,10 @@ Read `references/design-rules.md` (clearances, sizes, lighting layers). Chain-lo
    `exec(materials.py); exec(furnish.py); furnish("03_design/layout_v1.json")`. Items with an `asset`
    (Poly Haven / Sketchfab download) are imported and scaled to the layout width, with a warning if
    their proportions differ from the real product; items without one get dimension-exact stand-ins
-   (fine for review and lighting, replaced by real models before client renders).
+   (fine for review and lighting, replaced by real models before client renders). Before rendering from a
+   photo camera, check it is not inside a proposed item: photographers stand in corners where kitchens and
+   wardrobes go. If it is, add a new level real-estate view in free space instead (and label it as a view
+   without a source photo).
 5. Write `ffe_schedule.md` (item, size, material, colour, placement, evidence/reference) and, for
    staging, `staging_ledger.md` (template in `real-estate-content-production`).
 
@@ -181,15 +184,17 @@ Read `references/photoreal-recipes.md` (the render recipe). Chain-load `blender-
 4. **Render:** Cycles, AgX, 1024+ samples with denoise, passes for comp; then
    `scripts/finish.py --src raw.png --out final.jpg` for the camera traits (gentle contrast curve,
    edge chromatic aberration, vignetting, mid-tone grain), strength ≤ 1 for real estate.
-5. **Imperfection pass:** cushions dented, throws folded unevenly, books leaning, slight rug curl,
+5. **Daylight shots: practical lamps off** unless the photos show them on; 2700 K lamps in a sunny shot
+   read as a pink cast. Re-measure look_match after furnishing (warm rugs/furniture shift the bounce light).
+6. **Imperfection pass:** cushions dented, throws folded unevenly, books leaning, slight rug curl,
    fingerprints on glass, micro-scratches on floors, cables where devices are. Plausible, not messy.
-6. **Optional AI finishing** (`references/ai-finishing.md`, `comfyui-*`): low-denoise, structure-locked
+7. **Optional AI finishing** (`references/ai-finishing.md`, `comfyui-*`): low-denoise, structure-locked
    pass for realism only, then `upscale-for-print`. Every AI output is compared with the raw render;
    any architectural drift rejects it.
-7. **QA gate** (`generated-media-qa`, `qa-review` and the checklist in `references/photoreal-recipes.md`):
+8. **QA gate** (`generated-media-qa`, `qa-review` and the checklist in `references/photoreal-recipes.md`):
    geometry identical to the clay pass, scale of furniture, verticals, light direction matches the
    windows, no floating objects, no AI artefacts, disclosure label present where needed.
-8. **Deliver** to `05_final/`: images, paired originals, disclosure text, alt text, and a short report
+9. **Deliver** to `05_final/`: images, paired originals, disclosure text, alt text, and a short report
    of what is real, what is proposed, and what was inferred.
 
 ## Maintaining the tools

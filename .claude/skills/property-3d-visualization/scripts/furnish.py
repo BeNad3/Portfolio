@@ -50,6 +50,10 @@ def _mat(name):
         "MAT_Brass": lambda: g["brushed_metal"](name, (0.80, 0.62, 0.35), roughness=0.3),
         "MAT_Screen": lambda: g["solid"](name, (0.01, 0.01, 0.012), roughness=0.08),
         "MAT_Books": lambda: g["solid"](name, (0.45, 0.40, 0.35), roughness=0.6),
+        "MAT_Kitchen_Front": lambda: g["solid"](name, (0.58, 0.57, 0.52), roughness=0.55),     # matte greige
+        "MAT_Worktop": lambda: g["solid"](name, (0.50, 0.36, 0.24), roughness=0.35, coat=0.3),  # oiled oak
+        "MAT_Plinth": lambda: g["solid"](name, (0.12, 0.12, 0.12), roughness=0.6),
+        "MAT_Steel": lambda: g["brushed_metal"](name, (0.70, 0.70, 0.68), roughness=0.3),
     }
     return palette.get(name, lambda: g["solid"](name, (0.6, 0.6, 0.6)))()
 
@@ -243,10 +247,70 @@ def build_bookcase(p, w, d, h):
                 x += bw + 0.002
 
 
+def build_dining_table(p, w, d, h, round_top=None):
+    """Round (w == d) pedestal table or rectangular table on four legs."""
+    top = 0.03
+    if round_top is None:
+        round_top = abs(w - d) < 1e-6
+    if round_top:
+        cyl(p, f"{p.name}_top", w / 2, top, (0, 0, h - top / 2), "MAT_Oak", 64)
+        cyl(p, f"{p.name}_column", 0.04, h - top - 0.02, (0, 0, (h - top) / 2), "MAT_Metal_Black", 24)
+        cyl(p, f"{p.name}_foot", min(w, 0.9) * 0.28, 0.02, (0, 0, 0.01), "MAT_Metal_Black", 48)
+    else:
+        box(p, f"{p.name}_top", (w, d, top), (0, 0, h - top / 2), "MAT_Oak", 0.004)
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                box(p, f"{p.name}_leg", (0.04, 0.04, h - top), (sx * (w / 2 - 0.06), sy * (d / 2 - 0.06), (h - top) / 2),
+                    "MAT_Oak", 0.003)
+
+
+def build_chair(p, w, d, h):
+    """Dining chair; front (+Y) is where the sitter's knees point."""
+    seat_h, seat_t = 0.45, 0.03
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            cyl(p, f"{p.name}_leg", 0.013, seat_h - seat_t, (sx * (w / 2 - 0.04), sy * (d / 2 - 0.04), (seat_h - seat_t) / 2),
+                "MAT_Oak", 12)
+    box(p, f"{p.name}_seat", (w, d, seat_t), (0, 0, seat_h - seat_t / 2), "MAT_Oak", 0.006)
+    box(p, f"{p.name}_back", (w - 0.04, 0.02, h - seat_h - 0.05), (0, -d / 2 + 0.02, seat_h + (h - seat_h) / 2 + 0.02),
+        "MAT_Oak", 0.005, rot=(math.radians(-8), 0, 0))
+
+
+def build_kitchen_run(p, w, d, h, module=0.6):
+    """Base cabinets: recessed plinth, carcass, fronts with 3 mm gaps and bar handles, 4 cm worktop."""
+    plinth, wt = 0.10, 0.04
+    body_h = h - plinth - wt
+    box(p, f"{p.name}_plinth", (w, d - 0.06, plinth), (0, -0.03, plinth / 2), "MAT_Plinth", 0.0)
+    box(p, f"{p.name}_carcass", (w, d - 0.03, body_h), (0, -0.015, plinth + body_h / 2), "MAT_Kitchen_Front", 0.0)
+    n = max(1, round(w / module))
+    fw = w / n
+    for i in range(n):
+        x = -w / 2 + fw * (i + 0.5)
+        box(p, f"{p.name}_front", (fw - 0.003, 0.019, body_h - 0.003), (x, d / 2 - 0.02, plinth + body_h / 2),
+            "MAT_Kitchen_Front", 0.001)
+        box(p, f"{p.name}_handle", (fw * 0.5, 0.012, 0.012), (x, d / 2 - 0.004, plinth + body_h - 0.06), "MAT_Steel", 0.002)
+    box(p, f"{p.name}_worktop", (w, d + 0.02, wt), (0, 0.01, h - wt / 2), "MAT_Worktop", 0.003)
+
+
+def build_tall_unit(p, w, d, h):
+    """Tall housing (fridge column): carcass, two fronts, bar handles."""
+    plinth = 0.10
+    box(p, f"{p.name}_plinth", (w, d - 0.06, plinth), (0, -0.03, plinth / 2), "MAT_Plinth", 0.0)
+    box(p, f"{p.name}_carcass", (w, d - 0.03, h - plinth), (0, -0.015, plinth + (h - plinth) / 2), "MAT_Kitchen_Front", 0.0)
+    split = plinth + (h - plinth) * 0.55
+    for name, z0, z1 in (("low", plinth, split), ("high", split, h)):
+        box(p, f"{p.name}_front_{name}", (w - 0.003, 0.019, z1 - z0 - 0.003), (0, d / 2 - 0.02, (z0 + z1) / 2),
+            "MAT_Kitchen_Front", 0.001)
+    box(p, f"{p.name}_handle", (0.012, 0.012, 0.35), (w / 2 - 0.06, d / 2 - 0.004, split + 0.25), "MAT_Steel", 0.002)
+    box(p, f"{p.name}_handle2", (0.012, 0.012, 0.35), (w / 2 - 0.06, d / 2 - 0.004, split - 0.25), "MAT_Steel", 0.002)
+
+
 BUILDERS = {
     "sofa": build_sofa, "armchair": build_armchair, "coffee_table": build_coffee_table, "rug": build_rug,
     "tv_unit": build_tv_unit, "floor_lamp": build_floor_lamp, "bed": build_bed,
     "bedside_table": build_bedside_table, "wardrobe": build_wardrobe, "bookcase": build_bookcase,
+    "dining_table": build_dining_table, "chair": build_chair, "kitchen_run": build_kitchen_run,
+    "tall_unit": build_tall_unit,
 }
 
 
