@@ -37,6 +37,8 @@ PALETTE = {
     "MAT_Armchair": ("fabric", (0.30, 0.34, 0.30), {"sheen": 0.6}),
     "MAT_Rug": ("fabric", (0.72, 0.68, 0.60), {"sheen": 0.3, "roughness": 0.95, "weave_scale": 150}),
     "MAT_Linen": ("fabric", (0.82, 0.80, 0.76), {"sheen": 0.3, "weave_scale": 600}),
+    "MAT_Sheet": ("fabric", (0.86, 0.85, 0.82), {"sheen": 0.2, "weave_scale": 700}),
+    "MAT_Throw": ("fabric", (0.60, 0.42, 0.30), {"sheen": 0.5, "roughness": 0.9, "weave_scale": 120}),
     "MAT_Cushion_A": ("fabric", (0.55, 0.32, 0.22), {"sheen": 0.5}),
     "MAT_Cushion_B": ("fabric", (0.40, 0.45, 0.36), {"sheen": 0.5}),
     "MAT_Shade": ("fabric", (0.90, 0.87, 0.80), {"sheen": 0.2}),
@@ -176,6 +178,115 @@ def _jitter(o, rot=0.03, scale=0.02):
     o.scale = [s * (1 + _RNG.uniform(-scale, scale)) for s in o.scale]
 
 
+def _pillow(parent, name, w, d, t, loc, mat, rot=(0, 0, 0), n=14):
+    """Puffy pillow / cushion: thickness peaks in the middle and pinches to a seam at the edges."""
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    grid = {}
+    for side in (1, -1):
+        for i in range(n + 1):
+            for j in range(n + 1):
+                u, v = 2 * i / n - 1, 2 * j / n - 1
+                f = max(0.0, (1 - abs(u) ** 3) * (1 - abs(v) ** 3)) ** 0.5
+                edge = i in (0, n) or j in (0, n)
+                key = (0, i, j) if edge else (side, i, j)
+                if key not in grid:
+                    # edges bow inwards a little, like a stuffed cover pulling on its seam
+                    pinch = 1 - 0.06 * (1 - abs(v) ** 2) if i in (0, n) else 1.0
+                    pinch_y = 1 - 0.06 * (1 - abs(u) ** 2) if j in (0, n) else 1.0
+                    grid[key] = bm.verts.new((u * w / 2 * pinch, v * d / 2 * pinch_y, side * t / 2 * f))
+    for side in (1, -1):
+        for i in range(n):
+            for j in range(n):
+                q = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)]
+                vs = [grid.get((side, a, b)) or grid[(0, a, b)] for a, b in q]
+                bm.faces.new(vs if side > 0 else vs[::-1])
+    bm.to_mesh(me)
+    bm.free()
+    o = _obj(name, me, parent, mat)
+    o.location = loc
+    o.rotation_euler = rot
+    _box_uv(o)
+    _soft(o, 1)
+    _wrinkle(o, 0.004)
+    return o
+
+
+def _wrinkle(o, strength=0.006, scale=0.12):
+    """Fabric is never perfectly smooth: low-amplitude noise displacement after the subdivision."""
+    tex = bpy.data.textures.get("TEX_Wrinkle") or bpy.data.textures.new("TEX_Wrinkle", "CLOUDS")
+    tex.noise_scale = scale
+    mod = o.modifiers.new("Wrinkle", "DISPLACE")
+    mod.texture = tex
+    mod.strength = strength
+    mod.mid_level = 0.5
+    return o
+
+
+def _drape(parent, name, w, d, z, drop, mat, y0=0.0, foot=True, head=False, thick=0.03, r=0.06,
+           folds_per_m=5.0, res=0.03):
+    """Duvet / throw lying on a w x d top surface at height z and hanging `drop` over the sides
+    (and the foot at +Y). Built from a flat sheet: the excess beyond each edge rolls over a radius r
+    and falls, corners gather into a fold, the hanging part ripples. Local origin = top centre."""
+    W = w + 2 * drop
+    D = d + (drop if foot else 0) + (drop if head else 0)
+    nx, ny = max(8, int(W / res)), max(8, int(D / res))
+    ymin = -d / 2 - (drop if head else 0)
+
+    def roll(e):
+        if e <= 0:
+            return 0.0, 0.0
+        if e < r * math.pi / 2:
+            a = e / r
+            return r * math.sin(a), r * (1 - math.cos(a))
+        return r, r + (e - r * math.pi / 2)
+
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    vs = []
+    for j in range(ny + 1):
+        row = []
+        b = ymin + D * j / ny
+        for i in range(nx + 1):
+            a = -W / 2 + W * i / nx
+            ex = max(0.0, abs(a) - w / 2)
+            ey = max(0.0, b - d / 2) if foot else 0.0
+            if head:
+                ey = max(ey, -d / 2 - b)
+            ox, dx = roll(ex)
+            oy, dy = roll(ey)
+            hang = max(dx, dy)
+            corner = min(ex, ey)
+            x = math.copysign(min(abs(a), w / 2) + ox + 0.25 * corner, a)
+            y = (min(max(b, -d / 2), d / 2) + math.copysign(oy + 0.25 * corner, b)) if ey > 0 else b
+            # ripples grow with the hanging length, along the edge the cloth falls from
+            ripple = 0.015 * min(1.0, hang / 0.15)
+            if ex > ey:
+                x += math.copysign(ripple * math.sin(2 * math.pi * folds_per_m * b), a)
+            elif ey > 0:
+                y += math.copysign(ripple * math.sin(2 * math.pi * folds_per_m * a + 1.3), b)
+            row.append(bm.verts.new((x, y + y0, -hang)))
+        vs.append(row)
+    for j in range(ny):
+        for i in range(nx):
+            bm.faces.new((vs[j][i], vs[j][i + 1], vs[j + 1][i + 1], vs[j + 1][i]))
+    bm.to_mesh(me)
+    bm.free()
+    o = _obj(name, me, parent, mat)
+    o.location = (0, 0, z)
+    uv = me.uv_layers.new(name="UVMap")
+    for poly in me.polygons:
+        for li in poly.loop_indices:
+            co = me.vertices[me.loops[li].vertex_index].co
+            uv.data[li].uv = (co.x, co.y - co.z)
+    sol = o.modifiers.new("Thick", "SOLIDIFY")
+    sol.thickness = thick
+    sol.offset = 1.0
+    _soft(o, 1)
+    _wrinkle(o, 0.006)
+    return o
+
+
 def practical(parent, name, loc, watts=25.0, kelvin=2700, radius=0.04):
     ld = bpy.data.lights.new(name, "POINT")
     ld.energy = watts
@@ -262,18 +373,32 @@ def build_floor_lamp(p, w, d, h):
 
 
 def build_bed(p, w, d, h):
+    """Upholstered headboard, oak frame, mattress, a duvet draping over sides and foot with the top
+    turned back, two pillow pairs and a throw across the foot (MAT_Throw)."""
     frame_h = max(0.25, h - 0.22)
+    mat_top = frame_h + 0.22
     box(p, f"{p.name}_frame", (w + 0.06, d + 0.04, frame_h), (0, 0, frame_h / 2), "MAT_Oak", 0.01)
-    _soft(box(p, f"{p.name}_mattress", (w, d - 0.04, 0.22), (0, 0.0, frame_h + 0.11), "MAT_Linen", 0.03), 1)
+    box(p, f"{p.name}_mattress", (w, d - 0.04, 0.22), (0, 0.0, frame_h + 0.11), "MAT_Sheet", 0.05)
     box(p, f"{p.name}_head", (w + 0.1, 0.08, 1.05), (0, -d / 2 - 0.02, 0.525), "MAT_Armchair", 0.03)
-    duvet = _soft(box(p, f"{p.name}_duvet", (w + 0.08, d * 0.72, 0.07), (0, d * 0.14, frame_h + 0.22 + 0.03), "MAT_Linen", 0.03))
-    _jitter(duvet, 0.005, 0.01)
-    fold = _soft(box(p, f"{p.name}_fold", (w + 0.08, 0.22, 0.08), (0, -d * 0.22 + 0.11, frame_h + 0.22 + 0.05), "MAT_Linen", 0.03))
-    _jitter(fold, 0.01, 0.01)
+    drop = min(0.32, mat_top - 0.08)
+    cover = d * 0.74                                       # duvet turned back below the pillows
+    _drape(p, f"{p.name}_duvet", w, cover, mat_top, drop, "MAT_Linen", y0=d / 2 - 0.02 - cover / 2,
+           thick=0.045, r=0.07)
+    fold = _soft(box(p, f"{p.name}_fold", (w + 0.1, 0.16, 0.07),
+                     (0, d / 2 - 0.02 - cover - 0.05, mat_top + 0.035), "MAT_Linen", 0.03))
+    _jitter(fold, 0.006, 0.01)
+    throw_d = min(0.55, d * 0.28)
+    _drape(p, f"{p.name}_throw", w + 0.24, throw_d, mat_top + 0.05, drop - 0.06, "MAT_Throw",
+           y0=d / 2 - 0.02 - throw_d / 2 - 0.12, foot=False, thick=0.012, r=0.09, folds_per_m=7.0)
     for sx in (-1, 1):
-        pl = _soft(box(p, f"{p.name}_pillow", (w / 2 - 0.1, 0.45, 0.14), (sx * w / 4, -d / 2 + 0.3, frame_h + 0.22 + 0.08),
-                       "MAT_Linen", 0.05, rot=(math.radians(-18), 0, 0)))
-        _jitter(pl, 0.04, 0.03)
+        back = _pillow(p, f"{p.name}_pillow", w / 2 - 0.08, 0.50, 0.16,
+                       (sx * w / 4, -d / 2 + 0.24, mat_top + 0.14), "MAT_Linen",
+                       rot=(math.radians(-32), 0, sx * 0.02))
+        _jitter(back, 0.03, 0.02)
+        front = _pillow(p, f"{p.name}_pillow2", w / 2 - 0.14, 0.40, 0.13,
+                        (sx * w / 4, -d / 2 + 0.42, mat_top + 0.10), "MAT_Sheet",
+                        rot=(math.radians(-22), 0, -sx * 0.03))
+        _jitter(front, 0.03, 0.02)
 
 
 def build_bedside_table(p, w, d, h):
@@ -461,7 +586,9 @@ def build_wall_art(p, w, d, h):
 
 
 def build_cushion(p, w, d, h):
-    c = _soft(box(p, f"{p.name}_cushion", (w, d, h), (0, 0, h / 2), p.get("mat", "MAT_Cushion_A"), 0.04))
+    """Scatter cushion leaning back: size = (width, thickness, height) of the cushion standing up."""
+    c = _pillow(p, f"{p.name}_cushion", w, h, max(d, 0.12), (0, 0, h / 2), p.get("mat", "MAT_Cushion_A"),
+                rot=(math.radians(105), 0, 0))
     _jitter(c, 0.05, 0.04)
 
 
