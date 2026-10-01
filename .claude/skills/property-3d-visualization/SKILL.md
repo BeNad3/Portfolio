@@ -185,7 +185,12 @@ Read `references/photoreal-recipes.md` (the render recipe). Chain-load `blender-
    `scripts/finish.py --src raw.png --out final.jpg` for the camera traits (gentle contrast curve,
    edge chromatic aberration, vignetting, mid-tone grain), strength ≤ 1 for real estate.
 5. **Daylight shots: practical lamps off** unless the photos show them on; 2700 K lamps in a sunny shot
-   read as a pink cast. Re-measure look_match after furnishing (warm rugs/furniture shift the bounce light).
+   read as a pink cast. Re-measure look_match after furnishing: tall furniture and curtains block
+   daylight (typically 0.3-0.7 stops darker, and bluer as the sky fill dominates), so give the furnished
+   view its own exposure/white balance. AgX responds sub-linearly: expect 2-3 iterations at low res.
+   Also measure a kept floor region: listing photos are often HDR-processed (bright walls, darker floor),
+   so if walls match but the floor is ~1 stop bright, use a higher-contrast AgX look and favour the walls;
+   then check soft whites (bedding) do not clip: real linen is off-white (albedo ~0.7), never 0.85+.
 6. **Imperfection pass:** cushions dented, throws folded unevenly, books leaning, slight rug curl,
    fingerprints on glass, micro-scratches on floors, cables where devices are. Plausible, not messy.
 7. **Optional AI finishing** (`references/ai-finishing.md`, `comfyui-*`): low-denoise, structure-locked
