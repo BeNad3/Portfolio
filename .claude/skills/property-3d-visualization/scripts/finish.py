@@ -68,6 +68,8 @@ def main(argv=None):
     ap.add_argument("--vignette", type=float, default=0.10)
     ap.add_argument("--grain", type=float, default=0.012)
     ap.add_argument("--quality", type=int, default=94)
+    ap.add_argument("--seed", type=int, default=0, help="grain pattern; use the frame number for animations "
+                    "(a fixed pattern on moving footage reads as dirt on the lens)")
     args = ap.parse_args(argv)
 
     img = Image.open(args.src).convert("RGB")
@@ -77,7 +79,7 @@ def main(argv=None):
     a = s_curve(a, args.contrast * k)
     a = chromatic_aberration(a, ca * k)
     a = vignette(a, args.vignette * k)
-    a = grain(a, args.grain * k)
+    a = grain(a, args.grain * k, args.seed)
     out = Image.fromarray((np.clip(a, 0, 1) * 255 + 0.5).astype(np.uint8))
     save = {"quality": args.quality, "subsampling": 0} if args.out.lower().endswith((".jpg", ".jpeg")) else {}
     out.save(args.out, **save)
